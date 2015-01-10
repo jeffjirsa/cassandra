@@ -62,6 +62,7 @@ public abstract class MemtableAllocator
     public abstract CounterCell clone(CounterCell cell, CFMetaData cfm, OpOrder.Group writeOp);
     public abstract DeletedCell clone(DeletedCell cell, CFMetaData cfm, OpOrder.Group writeOp);
     public abstract ExpiringCell clone(ExpiringCell cell, CFMetaData cfm, OpOrder.Group writeOp);
+    public abstract ExpiringCounterCell clone(ExpiringCounterCell cell, CFMetaData cfm, OpOrder.Group writeOp);
     public abstract DecoratedKey clone(DecoratedKey key, OpOrder.Group opGroup);
     public abstract DataReclaimer reclaimer();
 

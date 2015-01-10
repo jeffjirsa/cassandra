@@ -231,5 +231,44 @@ public abstract class AbstractCell implements Cell
                                          Math.max(timestamp(), cell.timestamp()),
                                          Math.max(timestampOfLastDelete, ((CounterCell) cell).timestampOfLastDelete()));
     }
+    
+    public Cell reconcileExpiringCounter(Cell cell)
+    {
+        assert this instanceof ExpiringCounterCell : "Wrong class type: " + getClass();
+
+        // No matter what the counter cell's timestamp is, a tombstone always takes precedence. See CASSANDRA-7346.
+        if (cell instanceof DeletedCell)
+            return cell;
+
+        assert (cell instanceof ExpiringCounterCell) : "Wrong class type: " + cell.getClass();
+
+        // live < live last delete
+        if (timestamp() < ((ExpiringCounterCell) cell).timestampOfLastDelete())
+            return cell;
+
+        long timestampOfLastDelete = ((ExpiringCounterCell) this).timestampOfLastDelete();
+        int  timeToLive = ((ExpiringCounterCell) this).getTimeToLive();
+        int  localExpirationTime = ((ExpiringCounterCell) this).getLocalDeletionTime();
+        
+        // live last delete > live
+        if (timestampOfLastDelete > cell.timestamp())
+            return this;
+
+        // live + live. return one of the cells if its context is a superset of the other's, or merge them otherwise
+        ByteBuffer context = CounterCell.contextManager.merge(value(), cell.value());
+        if (context == value() && timestamp() >= cell.timestamp() && timestampOfLastDelete >= ((ExpiringCounterCell) cell).timestampOfLastDelete())
+            return this;
+        else if (context == cell.value() && cell.timestamp() >= timestamp() && ((ExpiringCounterCell) cell).timestampOfLastDelete() >= timestampOfLastDelete)
+            return cell;
+        else // merge clocks and timestamps.
+            return new BufferExpiringCounterCell(name(),
+                                         context,
+                                         Math.max(timestamp(), cell.timestamp()),
+                                         Math.max(timestampOfLastDelete, ((ExpiringCounterCell) cell).timestampOfLastDelete()),
+                                         Math.max(timeToLive, ((ExpiringCounterCell) cell).getTimeToLive()),
+                                         Math.min(localExpirationTime, ((ExpiringCounterCell) cell).getLocalDeletionTime())
+                                         );
+    }
+
 
 }

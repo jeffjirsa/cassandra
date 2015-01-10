@@ -162,6 +162,28 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
                                         System.currentTimeMillis()));
     }
 
+
+    /**
+     * Insert a new expiring counter column to the current row (and super column if applicable).
+     * @param name the column name
+     * @param value the value of the counter
+     * @param timestamp the column timestamp
+     * @param ttl the column time to live in seconds
+     * @param expirationTimestampMS the local expiration timestamp in milliseconds. This is the server time timestamp used for actually
+     * expiring the column, and as a consequence should be synchronized with the cassandra servers time. If {@code timestamp} represents
+     * the insertion time in microseconds (which is not required), this should be {@code (timestamp / 1000) + (ttl * 1000)}.
+     */
+    public void addExpiringCounterColumn(ByteBuffer name, long value, long timestamp, int ttl, long expirationTimestampMS) throws IOException
+    {
+        addColumn(new BufferExpiringCounterCell(metadata.comparator.cellFromByteBuffer(name), 
+        										CounterContext.instance().createGlobal(counterid, 1L, value), 
+        										timestamp, 
+        										Long.MIN_VALUE, 
+        										ttl, 
+        										(int)(expirationTimestampMS / 1000)));
+    }
+    
+    
     /**
      * Package protected for use by AbstractCQLSSTableWriter.
      * Not meant to be exposed publicly.

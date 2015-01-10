@@ -151,7 +151,8 @@ public abstract class ModificationStatement implements CQLStatement, MeasurableF
         if (isCounter() && attrs.isTimestampSet())
             throw new InvalidRequestException("Cannot provide custom timestamp for counter updates");
 
-        if (isCounter() && attrs.isTimeToLiveSet())
+        // XXX: Change this to a -Dcassandra.unsafe_counter_ttl
+        if (false && isCounter() && attrs.isTimeToLiveSet())
             throw new InvalidRequestException("Cannot provide custom TTL for counter updates");
     }
 
