@@ -210,6 +210,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
             CreateTableStatement stmt = new CreateTableStatement(cfName, properties, ifNotExists, staticColumns);
 
+            List<ColumnIdentifier> counterColumns = new ArrayList<ColumnIdentifier>();
             Map<ByteBuffer, CollectionType> definedMultiCellCollections = null;
             for (Map.Entry<ColumnIdentifier, CQL3Type.Raw> entry : definitions.entrySet())
             {
@@ -221,6 +222,10 @@ public class CreateTableStatement extends SchemaAlteringStatement
                         definedMultiCellCollections = new HashMap<>();
                     definedMultiCellCollections.put(id.bytes, (CollectionType) pt.getType());
                 }
+                else if ( entry.getValue().isCounter() )
+                {
+                    counterColumns.add(id);
+                }
                 stmt.columns.put(id, pt.getType()); // we'll remove what is not a column below
             }
 
@@ -228,6 +233,9 @@ public class CreateTableStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException("No PRIMARY KEY specifed (exactly one required)");
             else if (keyAliases.size() > 1)
                 throw new InvalidRequestException("Multiple PRIMARY KEYs specifed (exactly one required)");
+            else if (counterColumns.size() > 0 && properties.getDefaultTimeToLive() > 0)
+                throw new InvalidRequestException("Can not specify ttl on table containing counters");
+
 
             List<ColumnIdentifier> kAliases = keyAliases.get(0);
 
