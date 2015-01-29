@@ -262,7 +262,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 cfProps.validate();
 
                 if (meta.isCounter() && cfProps.getDefaultTimeToLive() > 0)
-                    throw new InvalidRequestException("Cannot set default_time_to_live in a counter column family");
+                    throw new InvalidRequestException("Cannot set default_time_to_live on a table with counters");
 
                 cfProps.applyToCFMetadata(cfm);
                 break;
