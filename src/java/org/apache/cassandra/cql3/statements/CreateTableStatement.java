@@ -106,8 +106,8 @@ public class CreateTableStatement extends SchemaAlteringStatement
         {
             ColumnIdentifier id = col.getKey();
             columnDefs.put(id.key, staticColumns.contains(id)
-                    ? ColumnDefinition.staticDef(id.key, col.getValue(), componentIndex)
-                    : ColumnDefinition.regularDef(id.key, col.getValue(), componentIndex));
+                                   ? ColumnDefinition.staticDef(id.key, col.getValue(), componentIndex)
+                                   : ColumnDefinition.regularDef(id.key, col.getValue(), componentIndex));
         }
 
         return columnDefs;
