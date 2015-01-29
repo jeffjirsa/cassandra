@@ -260,6 +260,10 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     throw new InvalidRequestException(String.format("ALTER TABLE WITH invoked, but no parameters found"));
 
                 cfProps.validate();
+
+                if (meta.isCounter() && cfProps.getDefaultTimeToLive() > 0)
+                    throw new InvalidRequestException("Cannot set default_time_to_live in a counter column family");
+
                 cfProps.applyToCFMetadata(cfm);
                 break;
             case RENAME:
