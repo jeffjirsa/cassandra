@@ -23,6 +23,7 @@ import java.io.DataOutput;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.zip.Adler32;
 import java.util.zip.Checksum;
@@ -107,15 +108,24 @@ public class DataIntegrityMetadata
             }
         }
 
-        public void append(byte[] buffer, int start, int end)
+        public void append(byte[] buffer, int start, int end, boolean checksumIncrementalResult)
         {
             try
             {
+                int incrementalChecksumValue;
+
                 incrementalChecksum.update(buffer, start, end);
-                incrementalOut.writeInt((int) incrementalChecksum.getValue());
+                incrementalChecksumValue = (int) incrementalChecksum.getValue();
+                incrementalOut.writeInt((int) incrementalChecksumValue);
                 incrementalChecksum.reset();
 
                 fullChecksum.update(buffer, start, end);
+
+                if (checksumIncrementalResult) {
+                    ByteBuffer byteBuffer = ByteBuffer.allocate(4);
+                    byteBuffer.putInt((int) incrementalChecksumValue);
+                    fullChecksum.update(byteBuffer.array(), 0, byteBuffer.array().length);
+                }
             }
             catch (IOException e)
             {
