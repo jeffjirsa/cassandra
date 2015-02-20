@@ -39,17 +39,18 @@ import org.apache.cassandra.transport.ProtocolException;
 
 public enum ConsistencyLevel
 {
-    ANY         (0),
-    ONE         (1),
-    TWO         (2),
-    THREE       (3),
-    QUORUM      (4),
-    ALL         (5),
-    LOCAL_QUORUM(6, true),
-    EACH_QUORUM (7),
-    SERIAL      (8),
-    LOCAL_SERIAL(9),
-    LOCAL_ONE   (10, true);
+    ANY                 (0),
+    ONE                 (1),
+    TWO                 (2),
+    THREE               (3),
+    QUORUM              (4),
+    ALL                 (5),
+    LOCAL_QUORUM        (6, true),
+    EACH_QUORUM         (7),
+    SERIAL              (8),
+    LOCAL_SERIAL        (9),
+    LOCAL_ONE           (10, true),
+    COORDINATOR_ONLY    (11);
 
     private static final Logger logger = LoggerFactory.getLogger(ConsistencyLevel.class);
 
@@ -135,6 +136,8 @@ public enum ConsistencyLevel
                 {
                     return quorumFor(keyspace);
                 }
+            case COORDINATOR_ONLY:
+                return 1;
             default:
                 throw new UnsupportedOperationException("Invalid consistency level: " + toString());
         }
@@ -148,6 +151,11 @@ public enum ConsistencyLevel
     public boolean isLocal(InetAddress endpoint)
     {
         return DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint));
+    }
+
+    public boolean isCoordinator(InetAddress endpoint)
+    {
+        return endpoint.equals(DatabaseDescriptor.getRpcAddress());
     }
 
     public int countLocalEndpoints(Iterable<InetAddress> liveEndpoints)
@@ -188,6 +196,19 @@ public enum ConsistencyLevel
          * we do read repair (since the first replica gets the data read) or not (since we'll take
          * the blockFor first ones).
          */
+        if (this == COORDINATOR_ONLY)
+        {
+            List<InetAddress> local = new ArrayList<InetAddress>();
+            for (InetAddress add : liveEndpoints)
+            {
+                if (isCoordinator(add)) {
+                    local.add(add);
+                    return local;
+                }
+            }
+            return local;
+        }
+
         if (isDCLocal)
             Collections.sort(liveEndpoints, DatabaseDescriptor.getLocalComparator());
 
@@ -316,6 +337,8 @@ public enum ConsistencyLevel
             case SERIAL:
             case LOCAL_SERIAL:
                 throw new InvalidRequestException("You must use conditional updates for serializable writes");
+            case COORDINATOR_ONLY:
+                throw new InvalidRequestException("COORDINATOR_ONLY ConsistencyLevel is only supported for reads");
         }
     }
 

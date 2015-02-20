@@ -218,15 +218,16 @@ exception SchemaDisagreementException {
  *   ALL          Ensure that the write is written to <code>&lt;ReplicationFactor&gt;</code> nodes before responding to the client.
  * 
  * Read consistency levels make the following guarantees before returning successful results to the client:
- *   ANY          Not supported. You probably want ONE instead.
- *   ONE          Returns the record obtained from a single replica.
- *   TWO          Returns the record with the most recent timestamp once two replicas have replied.
- *   THREE        Returns the record with the most recent timestamp once three replicas have replied.
- *   QUORUM       Returns the record with the most recent timestamp once a majority of replicas have replied.
- *   LOCAL_ONE    Returns the record with the most recent timestamp once a single replica within the local datacenter have replied.
- *   LOCAL_QUORUM Returns the record with the most recent timestamp once a majority of replicas within the local datacenter have replied.
- *   EACH_QUORUM  Returns the record with the most recent timestamp once a majority of replicas within each datacenter have replied.
- *   ALL          Returns the record with the most recent timestamp once all replicas have replied (implies no replica may be down)..
+ *   ANY                Not supported. You probably want ONE instead.
+ *   ONE                Returns the record obtained from a single replica.
+ *   TWO                Returns the record with the most recent timestamp once two replicas have replied.
+ *   THREE              Returns the record with the most recent timestamp once three replicas have replied.
+ *   QUORUM             Returns the record with the most recent timestamp once a majority of replicas have replied.
+ *   LOCAL_ONE          Returns the record with the most recent timestamp once a single replica within the local datacenter have replied.
+ *   LOCAL_QUORUM       Returns the record with the most recent timestamp once a majority of replicas within the local datacenter have replied.
+ *   EACH_QUORUM        Returns the record with the most recent timestamp once a majority of replicas within each datacenter have replied.
+ *   COORDINATORY_ONLY  Returns the record with the most recent timestamp in the single replica possessed by the coordinator
+ *   ALL                Returns the record with the most recent timestamp once all replicas have replied (implies no replica may be down)..
 */
 enum ConsistencyLevel {
     ONE = 1,
@@ -240,6 +241,7 @@ enum ConsistencyLevel {
     SERIAL = 9,
     LOCAL_SERIAL = 10,
     LOCAL_ONE = 11,
+    COORDINATOR_ONLY = 12,
 }
 
 /**

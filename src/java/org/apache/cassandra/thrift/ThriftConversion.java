@@ -63,6 +63,7 @@ public class ThriftConversion
             case SERIAL: return org.apache.cassandra.db.ConsistencyLevel.SERIAL;
             case LOCAL_SERIAL: return org.apache.cassandra.db.ConsistencyLevel.LOCAL_SERIAL;
             case LOCAL_ONE: return org.apache.cassandra.db.ConsistencyLevel.LOCAL_ONE;
+            case COORDINATOR_ONLY: return org.apache.cassandra.db.ConsistencyLevel.COORDINATOR_ONLY;
         }
         throw new AssertionError();
     }
@@ -82,6 +83,7 @@ public class ThriftConversion
             case SERIAL: return ConsistencyLevel.SERIAL;
             case LOCAL_SERIAL: return ConsistencyLevel.LOCAL_SERIAL;
             case LOCAL_ONE: return ConsistencyLevel.LOCAL_ONE;
+            // case COORDINATOR_ONLY: return ConsistencyLevel.COORDINATORY_ONLY;
         }
         throw new AssertionError();
     }

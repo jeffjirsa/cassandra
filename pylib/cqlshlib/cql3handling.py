@@ -86,7 +86,8 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'ALL',
         'LOCAL_QUORUM',
         'EACH_QUORUM',
-        'SERIAL'
+        'SERIAL',
+        'COORDINATOR_ONLY'
     )
 
     maybe_escape_name = staticmethod(maybe_escape_name)
