@@ -155,7 +155,7 @@ public enum ConsistencyLevel
 
     public boolean isCoordinator(InetAddress endpoint)
     {
-        return endpoint.equals(DatabaseDescriptor.getRpcAddress());
+        return endpoint.equals(DatabaseDescriptor.getBroadcastAddress());
     }
 
     public int countLocalEndpoints(Iterable<InetAddress> liveEndpoints)
@@ -190,12 +190,6 @@ public enum ConsistencyLevel
 
     public List<InetAddress> filterForQuery(Keyspace keyspace, List<InetAddress> liveEndpoints, ReadRepairDecision readRepair)
     {
-        /*
-         * Endpoints are expected to be restricted to live replicas, sorted by snitch preference.
-         * For LOCAL_QUORUM, move local-DC replicas in front first as we need them there whether
-         * we do read repair (since the first replica gets the data read) or not (since we'll take
-         * the blockFor first ones).
-         */
         if (this == COORDINATOR_ONLY)
         {
             List<InetAddress> local = new ArrayList<InetAddress>();
@@ -208,6 +202,13 @@ public enum ConsistencyLevel
             }
             return local;
         }
+
+        /*
+         * Endpoints are expected to be restricted to live replicas, sorted by snitch preference.
+         * For LOCAL_QUORUM, move local-DC replicas in front first as we need them there whether
+         * we do read repair (since the first replica gets the data read) or not (since we'll take
+         * the blockFor first ones).
+         */
 
         if (isDCLocal)
             Collections.sort(liveEndpoints, DatabaseDescriptor.getLocalComparator());
