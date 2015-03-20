@@ -114,7 +114,7 @@ class CellData
         }
 
         long ts1 = d1.livenessInfos.timestamp(i1), ts2 = d2.livenessInfos.timestamp(i2);
-        if (ts1 != ts1)
+        if (ts1 != ts2)
         {
             if (ts1 < ts2)
                 d2.moveCell(i2, merged, iMerged);
