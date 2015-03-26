@@ -1437,6 +1437,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return true;
     }
 
+    public CompactionManager.AllSSTableOpStatus verify(boolean extendedVerify) throws ExecutionException, InterruptedException
+    {
+        return CompactionManager.instance.performVerify(ColumnFamilyStore.this, extendedVerify);
+    }
+
     public CompactionManager.AllSSTableOpStatus sstablesRewrite(boolean excludeCurrentVersion) throws ExecutionException, InterruptedException
     {
         return CompactionManager.instance.performSSTableRewrite(ColumnFamilyStore.this, excludeCurrentVersion);
