@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.cql3;
 
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.junit.Test;
+import static org.junit.Assert.fail;
 
 public class CollectionsTest extends CQLTester
 {
@@ -167,7 +169,7 @@ public class CollectionsTest extends CQLTester
         execute("INSERT INTO %s(k, l) VALUES (0, ?)", list("v1", "v2", "v3"));
 
         assertRows(execute("SELECT l FROM %s WHERE k = 0"),
-            row(list("v1", "v2", "v3"))
+                row(list("v1", "v2", "v3"))
         );
 
         execute("DELETE l[?] FROM %s WHERE k = 0", 1);
@@ -210,7 +212,54 @@ public class CollectionsTest extends CQLTester
         execute("DELETE l FROM %s WHERE k = 0");
 
         assertRows(execute("SELECT l FROM %s WHERE k = 0"),
-            row((Object)null)
+            row((Object) null)
         );
+
+        try
+        {
+            execute("DELETE l[0] FROM %s WHERE k=0 ");
+            fail("Delete from null list should have thrown an exception");
+        } catch (InvalidRequestException e)
+        {
+            assertRows(execute("SELECT l FROM %s WHERE k = 0"),
+                    row((Object) null)
+            );
+        }
+        catch (NullPointerException e)
+        {
+            fail("Unexpected NPE while updating element of a null list");
+        }
+
+        try
+        {
+            execute("UPDATE %s SET l[0] = ? WHERE k=0", list("v10"));
+            fail("Update null list should have thrown an exception");
+        }
+        catch (InvalidRequestException e)
+        {
+            assertRows(execute("SELECT l FROM %s WHERE k = 0"),
+                    row((Object) null)
+            );
+        }
+        catch (NullPointerException e)
+        {
+            fail("Unexpected NPE while updating element of a null list");
+        }
+
+        try
+        {
+            execute("UPDATE %s SET l = l - ? WHERE k=0 ", list("v11"));
+            fail("Removing element from null list should have thrown an exception");
+        }
+        catch (InvalidRequestException e)
+        {
+            assertRows(execute("SELECT l FROM %s WHERE k = 0"),
+                    row((Object) null)
+            );
+        }
+        catch (NullPointerException e)
+        {
+            fail("Unexpected NPE while removing element from a null list");
+        }
     }
 }
