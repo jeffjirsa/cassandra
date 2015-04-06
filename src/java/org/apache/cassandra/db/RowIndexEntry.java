@@ -129,16 +129,16 @@ public class RowIndexEntry implements IMeasurableMemory
                 DeletionTime deletionTime = DeletionTime.serializer.deserialize(in);
 
                 int entries = in.readInt();
-                List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
-                for (int i = 0; i < entries; i++)
-                    columnsIndex.add(IndexHelper.IndexInfo.deserialize(in));
+                if (entries < 0 || estimateMemorySizeForKeys(entries) > Runtime.getRuntime().maxMemory())
+                {
+                    List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<IndexHelper.IndexInfo>(entries);
+                    for (int i = 0; i < entries; i++)
+                        columnsIndex.add(IndexHelper.IndexInfo.deserialize(in));
 
-                return new IndexedEntry(position, deletionTime, columnsIndex);
+                    return new IndexedEntry(position, deletionTime, columnsIndex);
+                }
             }
-            else
-            {
-                return new RowIndexEntry(position);
-            }
+            return new RowIndexEntry(position);
         }
 
         public void skip(DataInput in) throws IOException
@@ -154,6 +154,15 @@ public class RowIndexEntry implements IMeasurableMemory
                 return;
 
             FileUtils.skipBytesFully(in, size);
+        }
+
+        private int estimateMemorySizeForKeys(int n)
+        {
+            return (int) ObjectSizes.getFieldSize(ObjectSizes.getArraySize(n, 8 // IndexInfo.width
+                                                                            + 8 // IndexInfo.offset
+                                                                            + 4 // Very Low estimate of IndexInfo.lastName
+                                                                            + 4 // Very Low estimate of IndexInfo.firstName
+                                                                            ));
         }
     }
 
