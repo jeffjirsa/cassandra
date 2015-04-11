@@ -195,7 +195,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         Row.Writer writer = upd.writer();
         Rows.writeClustering(clustering, writer);
-        Cells.writeTombstone(writer, hintColumn, timestamp, upd.nowInSec());
+        hintColumn.getResolver().writeTombstone(writer, hintColumn, timestamp, upd.nowInSec());
 
         new Mutation(upd).applyUnsafe(); // don't bother with commitlog since we're going to flush as soon as we're done with delivery
     }

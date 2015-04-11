@@ -21,6 +21,8 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.atoms.Cell;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
@@ -39,6 +41,7 @@ import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.compress.CompressionParameters;
@@ -347,7 +350,8 @@ public class SchemaLoader
                                     null,
                                     null,
                                     null,
-                                    ColumnDefinition.Kind.REGULAR);
+                                    ColumnDefinition.Kind.REGULAR,
+                                    CellResolver.getResolver(null));
     }
 
     private static ColumnDefinition utf8Column(String ksName, String cfName)
@@ -360,7 +364,8 @@ public class SchemaLoader
                                     null,
                                     null,
                                     null,
-                                    ColumnDefinition.Kind.REGULAR);
+                                    ColumnDefinition.Kind.REGULAR,
+                                    CellResolver.getResolver(null));
     }
 
     public static CFMetaData perRowIndexedCFMD(String ksName, String cfName)
@@ -374,7 +379,7 @@ public class SchemaLoader
                 .addPartitionKey("key", AsciiType.instance)
                 .build();
 
-        return cfm.addOrReplaceColumnDefinition(ColumnDefinition.regularDef(ksName, cfName, "indexed", AsciiType.instance, null)
+        return cfm.addOrReplaceColumnDefinition(ColumnDefinition.regularDef(ksName, cfName, "indexed", AsciiType.instance, null, CellResolver.getResolver(null))
                                                                 .setIndex("indexe1", IndexType.CUSTOM, indexOptions));
     }
 
@@ -399,10 +404,10 @@ public class SchemaLoader
         CFMetaData.Builder builder = CFMetaData.Builder.create(ksName, cfName)
                 .addPartitionKey("key", AsciiType.instance)
                 .addClusteringColumn("name", AsciiType.instance)
-                .addRegularColumn("val", AsciiType.instance);
+                .addRegularColumn("val", AsciiType.instance, CellResolver.getResolver(null));
 
         for (int i = 0; i < columnCount; i++)
-            builder.addRegularColumn("val" + i, AsciiType.instance);
+            builder.addRegularColumn("val" + i, AsciiType.instance, CellResolver.getResolver(null));
 
         return builder.build();
     }
@@ -424,7 +429,7 @@ public class SchemaLoader
         return CFMetaData.Builder.createDense(ksName, cfName, subcc != null, false)
             .addPartitionKey("key", AsciiType.instance)
             .addClusteringColumn("cols", comp)
-            .addRegularColumn("val", AsciiType.instance)
+            .addRegularColumn("val", AsciiType.instance, CellResolver.getResolver(null))
             .build();
     }
 
@@ -444,7 +449,7 @@ public class SchemaLoader
         return CFMetaData.Builder.createSuper(ksName, cfName, false)
                 .addPartitionKey("key", BytesType.instance)
                 .addClusteringColumn(ccName, comp)
-                .addRegularColumn(new ColumnIdentifier("val", true), AsciiType.instance)
+                .addRegularColumn(new ColumnIdentifier("val", true), AsciiType.instance, CellResolver.getResolver(null))
                 .build();
     }
     public static CFMetaData indexCFMD(String ksName, String cfName, boolean withIdxType) throws ConfigurationException
@@ -452,8 +457,8 @@ public class SchemaLoader
         CFMetaData cfm = CFMetaData.Builder.create(ksName, cfName)
                 .addPartitionKey("key", AsciiType.instance)
                 .addClusteringColumn("cols", AsciiType.instance)
-                .addRegularColumn("birthdate", LongType.instance)
-                .addRegularColumn("notbirthdate", LongType.instance)
+                .addRegularColumn("birthdate", LongType.instance, CellResolver.getResolver(null))
+                .addRegularColumn("notbirthdate", LongType.instance, CellResolver.getResolver(null))
                 .build();
 
         ByteBuffer cName = ByteBufferUtil.bytes("birthdate");
@@ -469,8 +474,8 @@ public class SchemaLoader
 
         ByteBuffer cName = ByteBufferUtil.bytes("col1");
         IndexType idxType = withIdxType ? IndexType.COMPOSITES : null;
-        return cfm.addColumnDefinition(ColumnDefinition.regularDef(cfm, cName, UTF8Type.instance, 1)
-                  .setIndex(withIdxType ? "col1_idx" : null, idxType, Collections.<String, String>emptyMap()));
+        return cfm.addColumnDefinition(ColumnDefinition.regularDef(cfm, cName, UTF8Type.instance, 1, CellResolver.getResolver(null))
+                .setIndex(withIdxType ? "col1_idx" : null, idxType, Collections.<String, String>emptyMap()));
     }
     
     private static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)

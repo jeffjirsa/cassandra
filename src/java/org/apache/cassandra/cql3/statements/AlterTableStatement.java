@@ -26,6 +26,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
@@ -37,7 +38,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
 {
     public static enum Type
     {
-        ADD, ALTER, DROP, OPTS, RENAME
+        ADD, ALTER, DROP, OPTS, RENAME, RESOLVER
     }
 
     public final Type oType;
@@ -45,6 +46,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
     public final ColumnIdentifier.Raw rawColumnName;
     private final CFPropDefs cfProps;
     private final Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames;
+    public final Map<ColumnIdentifier.Raw, String> resolverMap;
     private final boolean isStatic; // Only for ALTER ADD
 
     public AlterTableStatement(CFName name,
@@ -53,6 +55,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                CQL3Type.Raw validator,
                                CFPropDefs cfProps,
                                Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames,
+                               Map<ColumnIdentifier.Raw, String> rawResolverMap,
                                boolean isStatic)
     {
         super(name);
@@ -61,6 +64,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
         this.validator = validator; // used only for ADD/ALTER commands
         this.cfProps = cfProps;
         this.renames = renames;
+        this.resolverMap = rawResolverMap;
         this.isStatic = isStatic;
     }
 
@@ -140,8 +144,8 @@ public class AlterTableStatement extends SchemaAlteringStatement
 
                 Integer componentIndex = cfm.isCompound() ? cfm.comparator.size() : null;
                 cfm.addColumnDefinition(isStatic
-                                        ? ColumnDefinition.staticDef(cfm, columnName.bytes, type, componentIndex)
-                                        : ColumnDefinition.regularDef(cfm, columnName.bytes, type, componentIndex));
+                                        ? ColumnDefinition.staticDef(cfm, columnName.bytes, type, componentIndex, CellResolver.getResolver(resolverMap.get(columnName)))
+                                        : ColumnDefinition.regularDef(cfm, columnName.bytes, type, componentIndex, CellResolver.getResolver(resolverMap.get(columnName))));
                 break;
 
             case ALTER:

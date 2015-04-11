@@ -27,6 +27,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -97,7 +98,7 @@ public class StreamingTransferTest
                 CFMetaData.Builder.create(KEYSPACE1, CF_STANDARDINT)
                         .addPartitionKey("key", AsciiType.instance)
                         .addClusteringColumn("cols", Int32Type.instance)
-                        .addRegularColumn("val", BytesType.instance)
+                        .addRegularColumn("val", BytesType.instance, CellResolver.getResolver(null))
                         .build(),
                 SchemaLoader.indexCFMD(KEYSPACE1, CF_INDEX, true));
         SchemaLoader.createKeyspace(KEYSPACE2,

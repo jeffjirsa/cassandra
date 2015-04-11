@@ -22,6 +22,7 @@ import java.util.List;
 
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -58,10 +59,18 @@ public interface CQL3Type
         TIME        (TimeType.instance);
 
         private final AbstractType<?> type;
+        private final Resolver resolver;
 
         private Native(AbstractType<?> type)
         {
             this.type = type;
+            this.resolver = null;
+        }
+
+        private Native(AbstractType<?> type, Resolver resolver)
+        {
+            this.type = type;
+            this.resolver = resolver;
         }
 
         public boolean isCollection()
@@ -73,6 +82,8 @@ public interface CQL3Type
         {
             return type;
         }
+
+        public Resolver getResolver() { return resolver; }
 
         @Override
         public String toString()
@@ -84,15 +95,28 @@ public interface CQL3Type
     public static class Custom implements CQL3Type
     {
         private final AbstractType<?> type;
+        private final Resolver resolver;
 
         public Custom(AbstractType<?> type)
         {
             this.type = type;
+            this.resolver = null;
+        }
+
+        public Custom(AbstractType<?> type, Resolver resolver)
+        {
+            this.type = type;
+            this.resolver = resolver;
         }
 
         public Custom(String className) throws SyntaxException, ConfigurationException
         {
             this(TypeParser.parse(className));
+        }
+
+        public Custom(String className, Resolver resolver)
+        {
+            this(TypeParser.parse(className), resolver);
         }
 
         public boolean isCollection()
@@ -103,6 +127,11 @@ public interface CQL3Type
         public AbstractType<?> getType()
         {
             return type;
+        }
+
+        public Resolver getResolver()
+        {
+            return resolver;
         }
 
         @Override
@@ -131,10 +160,18 @@ public interface CQL3Type
     public static class Collection implements CQL3Type
     {
         private final CollectionType type;
+        private final Resolver resolver;
 
         public Collection(CollectionType type)
         {
             this.type = type;
+            this.resolver = null;
+        }
+
+        public Collection(CollectionType type, Resolver resolver)
+        {
+            this.type = type;
+            this.resolver = resolver;
         }
 
         public AbstractType<?> getType()
@@ -145,6 +182,11 @@ public interface CQL3Type
         public boolean isCollection()
         {
             return true;
+        }
+
+        public Resolver getResolver()
+        {
+            return resolver;
         }
 
         @Override
@@ -198,16 +240,30 @@ public interface CQL3Type
         // Keeping this separatly from type just to simplify toString()
         private final String name;
         private final UserType type;
+        private final Resolver resolver;
 
         private UserDefined(String name, UserType type)
         {
             this.name = name;
             this.type = type;
+            this.resolver = null;
+        }
+
+        private UserDefined(String name, UserType type, Resolver resolver)
+        {
+            this.name = name;
+            this.type = type;
+            this.resolver = resolver;
         }
 
         public static UserDefined create(UserType type)
         {
             return new UserDefined(UTF8Type.instance.compose(type.name), type);
+        }
+
+        public static UserDefined create(UserType type, Resolver resolver)
+        {
+            return new UserDefined(UTF8Type.instance.compose(type.name), type, resolver);
         }
 
         public boolean isCollection()
@@ -218,6 +274,11 @@ public interface CQL3Type
         public AbstractType<?> getType()
         {
             return type;
+        }
+
+        public Resolver getResolver()
+        {
+            return resolver;
         }
 
         @Override
@@ -243,28 +304,41 @@ public interface CQL3Type
         }
     }
 
-    public static class Tuple implements CQL3Type
-    {
+    public static class Tuple implements CQL3Type {
         private final TupleType type;
+        private final Resolver resolver;
 
-        private Tuple(TupleType type)
-        {
+        private Tuple(TupleType type) {
             this.type = type;
+            this.resolver = null;
         }
 
-        public static Tuple create(TupleType type)
+        private Tuple(TupleType type, Resolver resolver)
         {
+            this.type = type;
+            this.resolver = resolver;
+        }
+
+        public static Tuple create(TupleType type) {
             return new Tuple(type);
         }
 
-        public boolean isCollection()
+        public static Tuple create(TupleType type, Resolver resolver)
         {
+            return new Tuple(type, resolver);
+        }
+
+        public boolean isCollection() {
             return false;
         }
 
-        public AbstractType<?> getType()
-        {
+        public AbstractType<?> getType() {
             return type;
+        }
+
+        public Resolver getResolver()
+        {
+            return resolver;
         }
 
         @Override

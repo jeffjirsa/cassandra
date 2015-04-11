@@ -169,16 +169,17 @@ public abstract class Rows
 
         for (int i = 0; i < mergedColumns.simpleColumnCount(); i++)
         {
+            // XXX - if it's a UDT, look for custom resolver, and call the UDTs custom resolver
             ColumnDefinition c = mergedColumns.getSimple(i);
             Cell existingCell = existing.getCell(c);
             Cell updateCell = update.getCell(c);
-            timeDelta = Math.min(timeDelta, Cells.reconcile(clustering,
-                                                            existingCell,
-                                                            updateCell,
-                                                            deletion,
-                                                            writer,
-                                                            nowInSec,
-                                                            indexUpdater));
+            timeDelta = Math.min(timeDelta, c.getResolver().reconcile(clustering,
+                    existingCell,
+                    updateCell,
+                    deletion,
+                    writer,
+                    nowInSec,
+                    indexUpdater));
         }
 
         for (int i = 0; i < mergedColumns.complexColumnCount(); i++)
@@ -194,7 +195,7 @@ public abstract class Rows
 
             Iterator<Cell> existingCells = existing.getCells(c);
             Iterator<Cell> updateCells = update.getCells(c);
-            timeDelta = Math.min(timeDelta, Cells.reconcileComplex(clustering, c, existingCells, updateCells, maxDt, writer, nowInSec, indexUpdater));
+            timeDelta = Math.min(timeDelta, c.getResolver().reconcileComplex(clustering, c, existingCells, updateCells, maxDt, writer, nowInSec, indexUpdater));
         }
 
         writer.endOfRow();
@@ -276,6 +277,7 @@ public abstract class Rows
 
         public Row merge(DeletionTime activeDeletion)
         {
+
             // If for this clustering we have only one row version and have no activeDeletion (i.e. nothing to filter out),
             // then we can just return that single row (we also should have no listener)
             if (rowsToMerge == 1 && activeDeletion.isLive() && listener == null)
@@ -283,6 +285,7 @@ public abstract class Rows
                 for (int i = 0; i < rows.length; i++)
                     if (rows[i] != null)
                         return rows[i];
+
                 throw new AssertionError();
             }
 
@@ -337,6 +340,8 @@ public abstract class Rows
             {
                 ColumnDefinition c = columns.getComplex(i);
 
+                // logger.warn("Merge complex columns, merging column " + c.toString() + " using resolver " + c.getResolver().toString());
+
                 DeletionTime maxComplexDeletion = DeletionTime.LIVE;
                 for (int j = 0; j < rows.length; j++)
                 {
@@ -376,7 +381,7 @@ public abstract class Rows
             {
                 Cell cell = cells[j];
                 if (cell != null && !activeDeletion.deletes(cell.livenessInfo()))
-                    reconciled = Cells.reconcile(reconciled, cell, nowInSec);
+                    reconciled = c.getResolver().reconcile(reconciled, cell, nowInSec);
             }
 
             if (reconciled != null)

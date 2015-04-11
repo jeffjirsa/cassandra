@@ -28,6 +28,7 @@ import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.utils.Pair;
 
 public enum DataType implements OptionCodec.Codecable<DataType>
@@ -104,12 +105,14 @@ public enum DataType implements OptionCodec.Codecable<DataType>
                 int n = cb.readUnsignedShort();
                 List<ByteBuffer> fieldNames = new ArrayList<>(n);
                 List<AbstractType<?>> fieldTypes = new ArrayList<>(n);
+                List<Resolver> fieldResolvers = new ArrayList<>(n);
                 for (int i = 0; i < n; i++)
                 {
                     fieldNames.add(UTF8Type.instance.decompose(CBUtil.readString(cb)));
                     fieldTypes.add(DataType.toType(codec.decodeOne(cb, version)));
+                    fieldResolvers.add(CellResolver.getResolver(CBUtil.readString(cb)));
                 }
-                return new UserType(ks, name, fieldNames, fieldTypes);
+                return new UserType(ks, name, fieldNames, fieldTypes, fieldResolvers);
             case TUPLE:
                 n = cb.readUnsignedShort();
                 List<AbstractType<?>> types = new ArrayList<>(n);

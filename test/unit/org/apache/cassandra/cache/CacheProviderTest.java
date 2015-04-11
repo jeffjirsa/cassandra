@@ -27,6 +27,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -68,7 +69,7 @@ public class CacheProviderTest
 
         cfm = CFMetaData.Builder.create(KEYSPACE1, CF_STANDARD1)
                                         .addPartitionKey("pKey", AsciiType.instance)
-                                        .addRegularColumn("col1", AsciiType.instance)
+                                        .addRegularColumn("col1", AsciiType.instance, CellResolver.getResolver(null))
                                         .build();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     SimpleStrategy.class,

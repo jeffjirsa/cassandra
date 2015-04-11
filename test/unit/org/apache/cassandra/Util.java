@@ -42,6 +42,7 @@ import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
@@ -90,7 +91,7 @@ public class Util
 
     public static Cell getRegularCell(CFMetaData metadata, Row row, String name)
     {
-        ColumnDefinition cdef = new ColumnDefinition(metadata.ksName, metadata.cfName, new ColumnIdentifier(name, true), metadata.columnNameComparator, null, ColumnDefinition.Kind.REGULAR);
+        ColumnDefinition cdef = new ColumnDefinition(metadata.ksName, metadata.cfName, new ColumnIdentifier(name, true), metadata.columnNameComparator, null, ColumnDefinition.Kind.REGULAR, CellResolver.getResolver(null));
 
         return row.getCell(cdef);
     }

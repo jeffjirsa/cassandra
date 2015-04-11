@@ -62,6 +62,7 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
   private static final org.apache.thrift.protocol.TField INDEX_TYPE_FIELD_DESC = new org.apache.thrift.protocol.TField("index_type", org.apache.thrift.protocol.TType.I32, (short)3);
   private static final org.apache.thrift.protocol.TField INDEX_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("index_name", org.apache.thrift.protocol.TType.STRING, (short)4);
   private static final org.apache.thrift.protocol.TField INDEX_OPTIONS_FIELD_DESC = new org.apache.thrift.protocol.TField("index_options", org.apache.thrift.protocol.TType.MAP, (short)5);
+  private static final org.apache.thrift.protocol.TField RESOLVER_FIELD_DESC = new org.apache.thrift.protocol.TField("resolver", org.apache.thrift.protocol.TType.STRING, (short)6);
 
   private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
   static {
@@ -78,6 +79,7 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
   public IndexType index_type; // optional
   public String index_name; // optional
   public Map<String,String> index_options; // optional
+  public String resolver; // optional
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -89,7 +91,8 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
      */
     INDEX_TYPE((short)3, "index_type"),
     INDEX_NAME((short)4, "index_name"),
-    INDEX_OPTIONS((short)5, "index_options");
+    INDEX_OPTIONS((short)5, "index_options"),
+    RESOLVER((short)6, "resolver");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -114,6 +117,8 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
           return INDEX_NAME;
         case 5: // INDEX_OPTIONS
           return INDEX_OPTIONS;
+        case 6: // RESOLVER
+          return RESOLVER;
         default:
           return null;
       }
@@ -220,6 +225,7 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
     this.index_type = null;
     this.index_name = null;
     this.index_options = null;
+    this.resolver = null;
   }
 
   public byte[] getName() {
@@ -371,6 +377,16 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
     }
   }
 
+  public void unsetResolver()
+  {
+    this.resolver = null;
+  }
+
+  public void setResolver(String value)
+  {
+    this.resolver = value;
+  }
+
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
     case NAME:
@@ -412,6 +428,14 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
         setIndex_options((Map<String,String>)value);
       }
       break;
+
+    case RESOLVER:
+      if (value == null) {
+        unsetResolver();
+      }
+      else {
+        setResolver((String)value);
+      }
 
     }
   }
@@ -775,6 +799,12 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
+            case 6: // RESOLVER
+                if(schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+                    struct.resolver = iprot.readString();
+                } else {
+                    org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+                }
           default:
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
         }
@@ -829,6 +859,12 @@ public class ColumnDef implements org.apache.thrift.TBase<ColumnDef, ColumnDef._
           oprot.writeFieldEnd();
         }
       }
+      if (struct.resolver != null) {
+          oprot.writeFieldBegin(RESOLVER_FIELD_DESC);
+          oprot.writeString(struct.resolver);
+          oprot.writeFieldEnd();
+      }
+
       oprot.writeFieldStop();
       oprot.writeStructEnd();
     }

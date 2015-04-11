@@ -30,8 +30,10 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.atoms.Cell;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -354,7 +356,7 @@ public class ThriftConversion
         }
 
         if (defaultValidator != null)
-            defs.add(ColumnDefinition.regularDef(ks, cf, DEFAULT_VALUE_ALIAS, defaultValidator, null));
+            defs.add(ColumnDefinition.regularDef(ks, cf, DEFAULT_VALUE_ALIAS, defaultValidator, null, CellResolver.getResolver(null)));
     }
 
     /*
@@ -538,7 +540,8 @@ public class ThriftConversion
                                     thriftColumnDef.index_options,
                                     thriftColumnDef.index_name,
                                     componentIndex,
-                                    ColumnDefinition.Kind.REGULAR);
+                                    ColumnDefinition.Kind.REGULAR,
+                                    CellResolver.getResolver(thriftColumnDef.resolver));
     }
 
     private static List<ColumnDefinition> fromThrift(String ksName,

@@ -22,6 +22,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -49,7 +50,7 @@ public class AutoSavingCacheTest
                 KSMetaData.optsWithRF(1),
                 CFMetaData.Builder.create(KEYSPACE1, CF_STANDARD1)
                     .addPartitionKey("pKey", AsciiType.instance)
-                    .addRegularColumn(new ColumnIdentifier("col1", true), AsciiType.instance)
+                    .addRegularColumn(new ColumnIdentifier("col1", true), AsciiType.instance, CellResolver.getResolver(null))
                     .build());
     }
 
@@ -59,7 +60,7 @@ public class AutoSavingCacheTest
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         for (int i = 0; i < 2; i++)
         {
-            ColumnDefinition colDef = new ColumnDefinition(cfs.metadata, ByteBufferUtil.bytes("col1"), AsciiType.instance, 0, ColumnDefinition.Kind.REGULAR);
+            ColumnDefinition colDef = new ColumnDefinition(cfs.metadata, ByteBufferUtil.bytes("col1"), AsciiType.instance, 0, ColumnDefinition.Kind.REGULAR, CellResolver.getResolver(null));
             RowUpdateBuilder rowBuilder = new RowUpdateBuilder(cfs.metadata, System.currentTimeMillis(), "key1");
             rowBuilder.add(colDef, "val1");
             rowBuilder.build().apply();

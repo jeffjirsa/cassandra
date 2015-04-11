@@ -29,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.base.Strings;
 import com.google.common.collect.*;
+import org.apache.cassandra.db.resolvers.Resolver;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -46,6 +47,7 @@ import org.apache.cassandra.db.atoms.*;
 import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.CompressionParameters;
@@ -695,6 +697,7 @@ public final class CFMetaData
      */
     public ColumnDefinition getDroppedColumnDefinition(ByteBuffer name)
     {
+        logger.warn("getDroppedColumnDefinition(" + name.toString() + "), will create null resolver");
         DroppedColumn dropped = droppedColumns.get(name);
         if (dropped == null)
             return null;
@@ -703,7 +706,7 @@ public final class CFMetaData
         // it means that it's a dropped column from before 3.0, and in that case using
         // BytesType is fine for what we'll be using it for, even if that's a hack.
         AbstractType<?> type = dropped.type == null ? BytesType.instance : dropped.type;
-        return ColumnDefinition.regularDef(this, name, type, null);
+        return ColumnDefinition.regularDef(this, name, type, null, CellResolver.getResolver(null));
     }
 
     @Override
@@ -1405,6 +1408,7 @@ public final class CFMetaData
         private final List<Pair<ColumnIdentifier, AbstractType>> clusteringColumns = new ArrayList<>();
         private final List<Pair<ColumnIdentifier, AbstractType>> staticColumns = new ArrayList<>();
         private final List<Pair<ColumnIdentifier, AbstractType>> regularColumns = new ArrayList<>();
+        private final List<Pair<ColumnIdentifier, Resolver>>     columnResolvers = new ArrayList<>();
 
         private Builder(String keyspace, String table, boolean isDense, boolean isCompound, boolean isSuper, boolean isCounter)
         {
@@ -1475,14 +1479,15 @@ public final class CFMetaData
             return this;
         }
 
-        public Builder addRegularColumn(String name, AbstractType type)
+        public Builder addRegularColumn(String name, AbstractType type, Resolver resolver)
         {
-            return addRegularColumn(new ColumnIdentifier(name, false), type);
+            return addRegularColumn(new ColumnIdentifier(name, false), type, resolver);
         }
 
-        public Builder addRegularColumn(ColumnIdentifier name, AbstractType type)
+        public Builder addRegularColumn(ColumnIdentifier name, AbstractType type, Resolver resolver)
         {
             this.regularColumns.add(Pair.create(name, type));
+            this.columnResolvers.add(Pair.create(name, resolver));
             return this;
         }
 
@@ -1495,6 +1500,15 @@ public final class CFMetaData
         {
             this.staticColumns.add(Pair.create(name, type));
             return this;
+        }
+
+        private Resolver resolverForColumnIdentifier(ColumnIdentifier name)
+        {
+            for(Pair<ColumnIdentifier, Resolver> pair : columnResolvers )
+                if (pair.left == name)
+                    return pair.right;
+
+            return CellResolver.getResolver(null);
         }
 
         public CFMetaData build()
@@ -1512,25 +1526,25 @@ public final class CFMetaData
             {
                 Pair<ColumnIdentifier, AbstractType> p = partitionKeys.get(i);
                 Integer componentIndex = partitionKeys.size() == 1 ? null : i;
-                partitions.add(new ColumnDefinition(keyspace, table, p.left, p.right, componentIndex, ColumnDefinition.Kind.PARTITION_KEY));
+                partitions.add(new ColumnDefinition(keyspace, table, p.left, p.right, componentIndex, ColumnDefinition.Kind.PARTITION_KEY, resolverForColumnIdentifier(p.left)));
             }
 
             for (int i = 0; i < csize; i++)
             {
                 Pair<ColumnIdentifier, AbstractType> p = clusteringColumns.get(i);
-                clusterings.add(new ColumnDefinition(keyspace, table, p.left, p.right, i, ColumnDefinition.Kind.CLUSTERING_COLUMN));
+                clusterings.add(new ColumnDefinition(keyspace, table, p.left, p.right, i, ColumnDefinition.Kind.CLUSTERING_COLUMN, resolverForColumnIdentifier(p.left)));
             }
 
             for (int i = 0; i < regularColumns.size(); i++)
             {
                 Pair<ColumnIdentifier, AbstractType> p = regularColumns.get(i);
-                builder.add(new ColumnDefinition(keyspace, table, p.left, p.right, csize, ColumnDefinition.Kind.REGULAR));
+                builder.add(new ColumnDefinition(keyspace, table, p.left, p.right, csize, ColumnDefinition.Kind.REGULAR, resolverForColumnIdentifier(p.left)));
             }
 
             for (int i = 0; i < staticColumns.size(); i++)
             {
                 Pair<ColumnIdentifier, AbstractType> p = staticColumns.get(i);
-                builder.add(new ColumnDefinition(keyspace, table, p.left, p.right, csize, ColumnDefinition.Kind.STATIC));
+                builder.add(new ColumnDefinition(keyspace, table, p.left, p.right, csize, ColumnDefinition.Kind.STATIC, resolverForColumnIdentifier(p.left)));
             }
 
             CFMetaData metadata = new CFMetaData(keyspace,

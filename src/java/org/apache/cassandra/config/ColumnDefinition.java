@@ -28,9 +28,12 @@ import com.google.common.collect.Lists;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.atoms.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ColumnDefinition extends ColumnSpecification implements Comparable<ColumnDefinition>
 {
@@ -71,43 +74,46 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
 
     private final Comparator<CellPath> cellPathComparator;
     private final Comparator<Cell> cellComparator;
+    private final Resolver resolver;
+    private static final Logger logger = LoggerFactory.getLogger(CFMetaData.class);
+
 
     public static ColumnDefinition partitionKeyDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
     {
-        return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.PARTITION_KEY);
+        return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.PARTITION_KEY, CellResolver.getResolver(null));
     }
 
     public static ColumnDefinition partitionKeyDef(String ksName, String cfName, String name, AbstractType<?> validator, Integer componentIndex)
     {
-        return new ColumnDefinition(ksName, cfName, new ColumnIdentifier(name, true), validator, null, null, null, componentIndex, Kind.PARTITION_KEY);
+        return new ColumnDefinition(ksName, cfName, new ColumnIdentifier(name, true), validator, null, null, null, componentIndex, Kind.PARTITION_KEY, CellResolver.getResolver(null));
     }
 
     public static ColumnDefinition clusteringKeyDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
     {
-        return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.CLUSTERING_COLUMN);
+        return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.CLUSTERING_COLUMN, CellResolver.getResolver(null));
     }
 
     public static ColumnDefinition clusteringKeyDef(String ksName, String cfName, String name, AbstractType<?> validator, Integer componentIndex)
     {
-        return new ColumnDefinition(ksName, cfName, new ColumnIdentifier(name, true),  validator, null, null, null, componentIndex, Kind.CLUSTERING_COLUMN);
+        return new ColumnDefinition(ksName, cfName, new ColumnIdentifier(name, true),  validator, null, null, null, componentIndex, Kind.CLUSTERING_COLUMN, CellResolver.getResolver(null));
     }
 
-    public static ColumnDefinition regularDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
+    public static ColumnDefinition regularDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex, Resolver resolver)
     {
-        return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.REGULAR);
+        return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.REGULAR, resolver);
     }
 
-    public static ColumnDefinition regularDef(String ksName, String cfName, String name, AbstractType<?> validator, Integer componentIndex)
+    public static ColumnDefinition regularDef(String ksName, String cfName, String name, AbstractType<?> validator, Integer componentIndex, Resolver resolver)
     {
-        return new ColumnDefinition(ksName, cfName, new ColumnIdentifier(name, true), validator, null, null, null, componentIndex, Kind.REGULAR);
+        return new ColumnDefinition(ksName, cfName, new ColumnIdentifier(name, true), validator, null, null, null, componentIndex, Kind.REGULAR, resolver);
     }
 
-    public static ColumnDefinition staticDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex)
+    public static ColumnDefinition staticDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex, Resolver resolver)
     {
-        return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.STATIC);
+        return new ColumnDefinition(cfm, name, validator, componentIndex, Kind.STATIC, resolver);
     }
 
-    public ColumnDefinition(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex, Kind kind)
+    public ColumnDefinition(CFMetaData cfm, ByteBuffer name, AbstractType<?> validator, Integer componentIndex, Kind kind, Resolver resolver)
     {
         this(cfm.ksName,
              cfm.cfName,
@@ -117,12 +123,13 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
              null,
              null,
              componentIndex,
-             kind);
+             kind,
+             resolver);
     }
 
-    public ColumnDefinition(String ksName, String cfName, ColumnIdentifier name, AbstractType<?> type, Integer componentIndex, Kind kind)
+    public ColumnDefinition(String ksName, String cfName, ColumnIdentifier name, AbstractType<?> type, Integer componentIndex, Kind kind, Resolver resolver)
     {
-        this(ksName, cfName, name, type, null, null, null, componentIndex, kind);
+        this(ksName, cfName, name, type, null, null, null, componentIndex, kind, resolver);
     }
 
     @VisibleForTesting
@@ -134,7 +141,8 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
                             Map<String, String> indexOptions,
                             String indexName,
                             Integer componentIndex,
-                            Kind kind)
+                            Kind kind,
+                            Resolver resolver)
     {
         super(ksName, cfName, name, validator);
         assert name != null && validator != null;
@@ -144,6 +152,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         this.setIndexType(indexType, indexOptions);
         this.cellPathComparator = makeCellPathComparator(kind, validator);
         this.cellComparator = makeCellComparator(cellPathComparator);
+        this.resolver = resolver;
     }
 
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> validator)
@@ -180,17 +189,17 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
 
     public ColumnDefinition copy()
     {
-        return new ColumnDefinition(ksName, cfName, name, type, indexType, indexOptions, indexName, componentIndex, kind);
+        return new ColumnDefinition(ksName, cfName, name, type, indexType, indexOptions, indexName, componentIndex, kind, resolver);
     }
 
     public ColumnDefinition withNewName(ColumnIdentifier newName)
     {
-        return new ColumnDefinition(ksName, cfName, newName, type, indexType, indexOptions, indexName, componentIndex, kind);
+        return new ColumnDefinition(ksName, cfName, newName, type, indexType, indexOptions, indexName, componentIndex, kind, resolver);
     }
 
     public ColumnDefinition withNewType(AbstractType<?> newType)
     {
-        return new ColumnDefinition(ksName, cfName, name, newType, indexType, indexOptions, indexName, componentIndex, kind);
+        return new ColumnDefinition(ksName, cfName, name, newType, indexType, indexOptions, indexName, componentIndex, kind, resolver);
     }
 
     public boolean isOnAllComponents()
@@ -226,6 +235,11 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         return componentIndex == null ? 0 : componentIndex;
     }
 
+    public Resolver getResolver()
+    {
+        return resolver; 
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -245,13 +259,14 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
             && Objects.equal(componentIndex, cd.componentIndex)
             && Objects.equal(indexName, cd.indexName)
             && Objects.equal(indexType, cd.indexType)
+            && Objects.equal(resolver, cd.resolver)
             && Objects.equal(indexOptions, cd.indexOptions);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(ksName, cfName, name, type, kind, componentIndex, indexName, indexType, indexOptions);
+        return Objects.hashCode(ksName, cfName, name, type, kind, componentIndex, indexName, indexType, indexOptions, resolver);
     }
 
     @Override
@@ -264,6 +279,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
                       .add("componentIndex", componentIndex)
                       .add("indexName", indexName)
                       .add("indexType", indexType)
+                      .add("resolver", resolver)
                       .toString();
     }
 
@@ -310,7 +326,8 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
                                     def.getIndexOptions(),
                                     def.getIndexName(),
                                     componentIndex,
-                                    kind);
+                                    kind,
+                                    resolver);
     }
 
     public String getIndexName()

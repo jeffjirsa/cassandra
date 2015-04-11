@@ -25,7 +25,10 @@ import com.google.common.collect.UnmodifiableIterator;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.resolvers.TimestampResolver;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Contains (non-counter) cell data for one or more rows.
@@ -36,6 +39,8 @@ class CellData
 
     private ByteBuffer[] values;
     private final LivenessInfoArray livenessInfos;
+
+    private static final Logger logger = LoggerFactory.getLogger(CellData.class);
 
     CellData(int initialCellCapacity, boolean isCounter)
     {
@@ -93,6 +98,7 @@ class CellData
     // Merge cell i into j
     public void mergeCell(int i, int j, int nowInSec)
     {
+        logger.warn(String.format("CellData.mergeCell(%s, %s, %s)", i, j, nowInSec));
         if (isCounter)
             mergeCounterCell(i, j, nowInSec);
         else
@@ -101,15 +107,19 @@ class CellData
 
     public static void mergeRegularCell(CellData d1, int i1, CellData d2, int i2, CellData merged, int iMerged, int nowInSec)
     {
+        logger.warn(String.format("CellData.mergeRegularCell(%s, %s, %s, %s, %s, %s, %s)", d1, i1, d2, i2, merged, iMerged, nowInSec));
+
         if (!d1.hasCell(i1))
         {
             if (d2.hasCell(i2))
                 d2.moveCell(i2, merged, iMerged);
+            logger.warn("exit line 116 - d1 has no i1 but d2 has i2");
             return;
         }
         if (!d2.hasCell(i2))
         {
             d1.moveCell(i1, merged, iMerged);
+            logger.warn("exit line 122 - d2 has no i2 so d1.move(i1)");
             return;
         }
 
@@ -120,6 +130,7 @@ class CellData
                 d2.moveCell(i2, merged, iMerged);
             else
                 d1.moveCell(i1, merged, iMerged);
+            logger.warn("exiting line 133, ts1 != ts2");
             return;
         }
         boolean live1 = d1.livenessInfos.isLive(i1, nowInSec);
@@ -130,6 +141,7 @@ class CellData
                 d1.moveCell(i1, merged, iMerged);
             else
                 d2.moveCell(i2, merged, iMerged);
+            logger.warn("live1 != live2, movedCell, exiting line 144");
             return;
         }
 
@@ -143,6 +155,8 @@ class CellData
             d2.moveCell(i2, merged, iMerged);
         else
             d1.moveCell(i1, merged, iMerged);
+
+        logger.warn("fell to bottom, exiting line 159");
     }
 
     private void mergeCounterCell(int i, int j, int nowInSec)

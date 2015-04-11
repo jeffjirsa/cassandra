@@ -230,7 +230,7 @@ public class DataResolver extends ResponseResolver
                 for (int i = 0; i < versions.length; i++)
                 {
                     Cell version = versions[i];
-                    Cell toAdd = version == null ? mergedCell : Cells.diff(mergedCell, version);
+                    Cell toAdd = version == null ? mergedCell : mergedCell.column().getResolver().diff(mergedCell, version);
                     if (toAdd != null)
                         toAdd.writeTo(currentRow(i));
                 }

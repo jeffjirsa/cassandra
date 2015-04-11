@@ -28,6 +28,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,6 +42,7 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -55,6 +57,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.apache.cassandra.utils.FBUtilities.fromJsonMap;
 import static org.apache.cassandra.utils.FBUtilities.json;
+import static org.apache.cassandra.utils.FBUtilities.serialize;
 
 /** system.schema_* tables used to store keyspace/table/type attributes prior to C* 3.0 */
 public class LegacySchemaTables
@@ -128,6 +131,7 @@ public class LegacySchemaTables
                 + "index_type text,"
                 + "type text,"
                 + "validator text,"
+                + "column_resolver text,"
                 + "PRIMARY KEY ((keyspace_name), columnfamily_name, column_name))");
 
     private static final CFMetaData Triggers =
@@ -148,6 +152,7 @@ public class LegacySchemaTables
                 + "type_name text,"
                 + "field_names list<text>,"
                 + "field_types list<text>,"
+                + "field_resolvers list<text>,"
                 + "PRIMARY KEY ((keyspace_name), type_name))");
 
     private static final CFMetaData Functions =
@@ -719,13 +724,14 @@ public class LegacySchemaTables
 
         adder.resetCollection("field_names");
         adder.resetCollection("field_types");
+        adder.resetCollection("field_resolvers");
 
         for (int i = 0; i < type.size(); i++)
         {
             adder.addListEntry("field_names", type.fieldName(i));
             adder.addListEntry("field_types", type.fieldType(i).toString());
+            adder.addListEntry("field_resolvers", type.fieldResolver(i).getName());
         }
-
         adder.build();
     }
 
@@ -754,6 +760,7 @@ public class LegacySchemaTables
         ByteBuffer name = ByteBufferUtil.bytes(row.getString("type_name"));
         List<String> rawColumns = row.getList("field_names", UTF8Type.instance);
         List<String> rawTypes = row.getList("field_types", UTF8Type.instance);
+        List<String> rawResolvers = row.getList("field_resolvers", UTF8Type.instance);
 
         List<ByteBuffer> columns = new ArrayList<>(rawColumns.size());
         for (String rawColumn : rawColumns)
@@ -763,7 +770,11 @@ public class LegacySchemaTables
         for (String rawType : rawTypes)
             types.add(parseType(rawType));
 
-        return new UserType(keyspace, name, columns, types);
+        List<Resolver> resolvers = new ArrayList<>(rawTypes.size());
+        for (String rawResolver: rawResolvers)
+            resolvers.add(CellResolver.getResolver(rawResolver));
+
+        return new UserType(keyspace, name, columns, types, resolvers);
     }
 
     /*
@@ -968,7 +979,6 @@ public class LegacySchemaTables
         try (RowIterator serializedColumns = readSchemaPartitionForTable(COLUMNS, ksName, cfName);
              RowIterator serializedTriggers = readSchemaPartitionForTable(TRIGGERS, ksName, cfName))
         {
-
             CFMetaData cfm = createTableFromTableRowAndColumnsPartition(result, serializedColumns);
             for (TriggerDefinition trigger : createTriggersFromTriggersPartition(serializedTriggers))
                 cfm.addTriggerDefinition(trigger);
@@ -985,6 +995,7 @@ public class LegacySchemaTables
 
         AbstractType<?> rawComparator = TypeParser.parse(result.getString("comparator"));
         AbstractType<?> subComparator = result.has("subcomparator") ? TypeParser.parse(result.getString("subcomparator")) : null;
+        Resolver resolver = CellResolver.getResolver(null);
 
         boolean isSuper = result.getString("type").toLowerCase().equals("super");
         boolean isDense = result.getBoolean("is_dense");
@@ -1085,6 +1096,7 @@ public class LegacySchemaTables
         adder.add("index_name", column.getIndexName());
         adder.add("index_type", column.getIndexType() == null ? null : column.getIndexType().toString());
         adder.add("index_options", json(column.getIndexOptions()));
+        adder.add("column_resolver", column.getResolver().getName());
 
         adder.build();
     }
@@ -1125,8 +1137,10 @@ public class LegacySchemaTables
                                                                       boolean isDense)
     {
         List<ColumnDefinition> columns = new ArrayList<>();
-        for (UntypedResultSet.Row row : rows)
+        for (UntypedResultSet.Row row : rows) {
             columns.add(createColumnFromColumnRow(row, keyspace, table, rawComparator, rawSubComparator, isSuper, isDense));
+        }
+
         return columns;
     }
 
@@ -1154,6 +1168,9 @@ public class LegacySchemaTables
         ColumnIdentifier name = new ColumnIdentifier(comparator.fromString(row.getString("column_name")), comparator);
 
         AbstractType<?> validator = parseType(row.getString("validator"));
+        Resolver resolver = row.has("column_resolver") ?
+                CellResolver.getResolver(row.getString("column_resolver")) :
+                CellResolver.getResolver(null);
 
         IndexType indexType = null;
         if (row.has("index_type"))
@@ -1167,7 +1184,7 @@ public class LegacySchemaTables
         if (row.has("index_name"))
             indexName = row.getString("index_name");
 
-        return new ColumnDefinition(keyspace, table, name, validator, indexType, indexOptions, indexName, componentIndex, kind);
+        return new ColumnDefinition(keyspace, table, name, validator, indexType, indexOptions, indexName, componentIndex, kind, resolver);
     }
 
     private static AbstractType<?> getComponentComparator(AbstractType<?> rawComparator, Integer componentIndex)

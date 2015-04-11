@@ -28,10 +28,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+
+import org.slf4j.*;
 
 /**
  * Parse a string containing an Type definition.
@@ -45,6 +48,8 @@ public class TypeParser
     private static final Map<String, AbstractType<?>> cache = new HashMap<String, AbstractType<?>>();
 
     public static final TypeParser EMPTY_PARSER = new TypeParser("", 0);
+
+    private static final Logger logger = LoggerFactory.getLogger(TypeParser.class);
 
     private TypeParser(String str, int idx)
     {
@@ -87,6 +92,7 @@ public class TypeParser
             type = getAbstractType(name, new TypeParser(str, i));
         else
             type = getAbstractType(name);
+
 
         // We don't really care about concurrency here. Worst case scenario, we do some parsing unnecessarily
         cache.put(str, type);
@@ -295,7 +301,7 @@ public class TypeParser
         }
     }
 
-    public Pair<Pair<String, ByteBuffer>, List<Pair<ByteBuffer, AbstractType>>> getUserTypeParameters() throws SyntaxException, ConfigurationException
+    public Pair<Pair<String, ByteBuffer>, List<Pair<ByteBuffer, Pair<AbstractType, Resolver>>>> getUserTypeParameters() throws SyntaxException, ConfigurationException
     {
 
         if (isEOS() || str.charAt(idx) != '(')
@@ -307,7 +313,7 @@ public class TypeParser
         String keyspace = readNextIdentifier();
         skipBlankAndComma();
         ByteBuffer typeName = fromHex(readNextIdentifier());
-        List<Pair<ByteBuffer, AbstractType>> defs = new ArrayList<>();
+        List<Pair<ByteBuffer, Pair<AbstractType, Resolver>>> defs = new ArrayList<>();
 
         while (skipBlankAndComma())
         {
@@ -326,7 +332,8 @@ public class TypeParser
             try
             {
                 AbstractType type = parse();
-                defs.add(Pair.create(name, type));
+                Resolver resolver = CellResolver.getResolver(null);
+                defs.add(Pair.create(name, Pair.create(type, resolver)));
             }
             catch (SyntaxException e)
             {
@@ -573,7 +580,7 @@ public class TypeParser
         return sb.toString();
     }
 
-    public static String stringifyUserTypeParameters(String keysace, ByteBuffer typeName, List<ByteBuffer> columnNames, List<AbstractType<?>> columnTypes)
+    public static String stringifyUserTypeParameters(String keysace, ByteBuffer typeName, List<ByteBuffer> columnNames, List<AbstractType<?>> columnTypes, List<Resolver> columnResolvers)
     {
         StringBuilder sb = new StringBuilder();
         sb.append('(').append(keysace).append(",").append(ByteBufferUtil.bytesToHex(typeName));
@@ -584,6 +591,8 @@ public class TypeParser
             sb.append(ByteBufferUtil.bytesToHex(columnNames.get(i))).append(":");
             // omit FrozenType(...) from fields because it is currently implicit
             sb.append(columnTypes.get(i).toString(true));
+            // XXX: JEFF TODO: if we add the resolvers to stringify, we need to make the parser work properly
+            // sb.append(":").append(columnResolvers.get(i).toString());
         }
         sb.append(')');
         return sb.toString();

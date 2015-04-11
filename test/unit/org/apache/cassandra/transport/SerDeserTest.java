@@ -23,6 +23,7 @@ import java.util.*;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.ByteBuf;
 
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.junit.Test;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -186,7 +187,8 @@ public class SerDeserTest
         UserType udt = new UserType("ks",
                                     bb("myType"),
                                     Arrays.asList(bb("f1"), bb("f2"), bb("f3"), bb("f4")),
-                                    Arrays.asList(LongType.instance, lt, st, mt));
+                                    Arrays.asList(LongType.instance, lt, st, mt),
+                                    Arrays.asList(CellResolver.getResolver(null), CellResolver.getResolver(null), CellResolver.getResolver(null), CellResolver.getResolver(null)));
 
         Map<ColumnIdentifier, Term.Raw> value = new HashMap<>();
         value.put(ci("f1"), lit(42));

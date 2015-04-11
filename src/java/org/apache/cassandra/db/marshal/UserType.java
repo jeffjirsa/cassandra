@@ -24,11 +24,14 @@ import java.util.List;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
+
+import org.slf4j.*;
 
 /**
  * A user defined type.
@@ -40,29 +43,37 @@ public class UserType extends TupleType
     public final String keyspace;
     public final ByteBuffer name;
     private final List<ByteBuffer> fieldNames;
+    private final List<Resolver> fieldResolvers;
 
-    public UserType(String keyspace, ByteBuffer name, List<ByteBuffer> fieldNames, List<AbstractType<?>> fieldTypes)
+    private static final Logger logger = LoggerFactory.getLogger(UserType.class);
+
+    public UserType(String keyspace, ByteBuffer name, List<ByteBuffer> fieldNames, List<AbstractType<?>> fieldTypes, List<Resolver> fieldResolvers)
     {
         super(fieldTypes);
+
         assert fieldNames.size() == fieldTypes.size();
         this.keyspace = keyspace;
         this.name = name;
         this.fieldNames = fieldNames;
+        this.fieldResolvers = fieldResolvers;
     }
 
     public static UserType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
-        Pair<Pair<String, ByteBuffer>, List<Pair<ByteBuffer, AbstractType>>> params = parser.getUserTypeParameters();
+        Pair<Pair<String, ByteBuffer>, List<Pair<ByteBuffer, Pair<AbstractType,Resolver>>>> params = parser.getUserTypeParameters();
         String keyspace = params.left.left;
         ByteBuffer name = params.left.right;
         List<ByteBuffer> columnNames = new ArrayList<>(params.right.size());
         List<AbstractType<?>> columnTypes = new ArrayList<>(params.right.size());
-        for (Pair<ByteBuffer, AbstractType> p : params.right)
+        List<Resolver> columnResolvers = new ArrayList<>(params.right.size());
+        for (Pair<ByteBuffer, Pair<AbstractType, Resolver>> p : params.right)
         {
             columnNames.add(p.left);
-            columnTypes.add(p.right.freeze());
+            columnTypes.add(p.right.left.freeze());
+            columnResolvers.add(p.right.right);
         }
-        return new UserType(keyspace, name, columnNames, columnTypes);
+
+        return new UserType(keyspace, name, columnNames, columnTypes, columnResolvers);
     }
 
     public AbstractType<?> fieldType(int i)
@@ -83,6 +94,16 @@ public class UserType extends TupleType
     public List<ByteBuffer> fieldNames()
     {
         return fieldNames;
+    }
+
+    public List<Resolver> fieldResolvers()
+    {
+        return fieldResolvers;
+    }
+
+    public Resolver fieldResolver(int i)
+    {
+        return fieldResolvers.get(i);
     }
 
     public String getNameAsString()
@@ -147,6 +168,6 @@ public class UserType extends TupleType
     @Override
     public String toString()
     {
-        return getClass().getName() + TypeParser.stringifyUserTypeParameters(keyspace, name, fieldNames, types);
+        return getClass().getName() + TypeParser.stringifyUserTypeParameters(keyspace, name, fieldNames, types, fieldResolvers);
     }
 }

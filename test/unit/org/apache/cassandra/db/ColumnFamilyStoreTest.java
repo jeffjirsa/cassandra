@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -268,7 +269,7 @@ public class ColumnFamilyStoreTest
         ByteBuffer val = ByteBufferUtil.bytes("val1");
 
         // insert
-        ColumnDefinition newCol = new ColumnDefinition(cfs.metadata, ByteBufferUtil.bytes("val2"), AsciiType.instance, 1, ColumnDefinition.Kind.REGULAR);
+        ColumnDefinition newCol = new ColumnDefinition(cfs.metadata, ByteBufferUtil.bytes("val2"), AsciiType.instance, 1, ColumnDefinition.Kind.REGULAR, CellResolver.getResolver(null));
         new RowUpdateBuilder(cfs.metadata, 0, "key1").add("val", "val1").build().applyUnsafe();
         new RowUpdateBuilder(cfs.metadata, 0, "key2").add("val", "val1").build().applyUnsafe();
         assertRangeCount(cfs, col, val, 2);

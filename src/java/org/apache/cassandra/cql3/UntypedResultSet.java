@@ -33,10 +33,14 @@ import org.apache.cassandra.db.partitions.DataIterator;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.transport.Server;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** a utility for doing internal cql-based queries */
 public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 {
+    private static final Logger logger = LoggerFactory.getLogger(UntypedResultSet.class);
+
     public static UntypedResultSet create(ResultSet rs)
     {
         return new FromResultSet(rs);
@@ -262,6 +266,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public String getString(String column)
         {
+            logger.info("getString(column) => " + column);
             return UTF8Type.instance.compose(data.get(column));
         }
 

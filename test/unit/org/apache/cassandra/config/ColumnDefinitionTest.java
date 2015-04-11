@@ -20,6 +20,7 @@ package org.apache.cassandra.config;
  *
  */
 
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -37,10 +38,10 @@ public class ColumnDefinitionTest
                 .addClusteringColumn("col1", AsciiType.instance)
                 .withColumnNameComparator(AsciiType.instance).build();
 
-        ColumnDefinition cd0 = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinitionName0"), BytesType.instance, null)
+        ColumnDefinition cd0 = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinitionName0"), BytesType.instance, null, CellResolver.getResolver(null))
                                                .setIndex("random index name 0", IndexType.KEYS, null);
 
-        ColumnDefinition cd1 = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition1"), LongType.instance, null);
+        ColumnDefinition cd1 = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition1"), LongType.instance, null, CellResolver.getResolver(null));
 
         testSerializeDeserialize(cfm, cd0);
         testSerializeDeserialize(cfm, cd1);

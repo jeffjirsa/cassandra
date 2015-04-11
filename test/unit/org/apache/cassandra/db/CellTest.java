@@ -109,9 +109,9 @@ public class CellTest
         Cell c2 = buildCell(cfm, n2, v2, t2, et2);
 
         int now = FBUtilities.nowInSeconds();
-        if (Cells.reconcile(c1, c2, now) == c1)
-            return Cells.reconcile(c2, c1, now) == c1 ? -1 : 0;
-        return Cells.reconcile(c2, c1, now) == c2 ? 1 : 0;
+        if (cfm.getColumnDefinition(ByteBufferUtil.bytes(n1)).getResolver().reconcile(c1, c2, now) == c1)
+            return cfm.getColumnDefinition(ByteBufferUtil.bytes(n2)).getResolver().reconcile(c2, c1, now) == c1 ? -1 : 0;
+        return cfm.getColumnDefinition(ByteBufferUtil.bytes(n1)).getResolver().reconcile(c2, c1, now) == c2 ? 1 : 0;
     }
 
     private Cell buildCell(CFMetaData cfm, String columnName, String value, long timestamp, int ttl)

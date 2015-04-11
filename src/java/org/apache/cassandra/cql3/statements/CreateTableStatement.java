@@ -29,6 +29,7 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.service.ClientState;
@@ -36,10 +37,15 @@ import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** A <code>CREATE TABLE</code> parsed from a CQL query statement. */
 public class CreateTableStatement extends SchemaAlteringStatement
 {
+    private static final Logger logger = LoggerFactory.getLogger(CreateTableStatement.class);
+
     private List<AbstractType<?>> keyTypes;
     private List<AbstractType<?>> clusteringTypes;
 
@@ -47,13 +53,14 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
     private final List<ColumnIdentifier> keyAliases = new ArrayList<>();
     private final List<ColumnIdentifier> columnAliases = new ArrayList<>();
+
     private ByteBuffer valueAlias;
 
     private boolean isDense;
     private boolean isCompound;
     private boolean hasCounters;
 
-    private final Map<ColumnIdentifier, AbstractType> columns = new HashMap<ColumnIdentifier, AbstractType>();
+    private final Map<ColumnIdentifier, Pair<AbstractType, Resolver>> columns = new HashMap<ColumnIdentifier, Pair<AbstractType, Resolver>>();
     private final Set<ColumnIdentifier> staticColumns;
     private final CFPropDefs properties;
     private final boolean ifNotExists;
@@ -127,13 +134,14 @@ public class CreateTableStatement extends SchemaAlteringStatement
         for (int i = 0; i < columnAliases.size(); i++)
             builder.addClusteringColumn(columnAliases.get(i), clusteringTypes.get(i));
 
-        for (Map.Entry<ColumnIdentifier, AbstractType> entry : columns.entrySet())
+        for (Map.Entry<ColumnIdentifier, Pair<AbstractType, Resolver>> entry : columns.entrySet())
         {
             ColumnIdentifier name = entry.getKey();
             if (staticColumns.contains(name))
-                builder.addStaticColumn(name, entry.getValue());
+                builder.addStaticColumn(name, entry.getValue().left);
             else
-                builder.addRegularColumn(name, entry.getValue());
+                builder.addRegularColumn(name, entry.getValue().left, entry.getValue().right);
+
         }
         return builder;
     }
@@ -159,11 +167,13 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
     public static class RawStatement extends CFStatement
     {
-        private final Map<ColumnIdentifier, CQL3Type.Raw> definitions = new HashMap<>();
+        private final Map<ColumnIdentifier, Pair<CQL3Type.Raw, Resolver>> definitions = new HashMap<>();
         public final CFPropDefs properties = new CFPropDefs();
 
         private final List<List<ColumnIdentifier>> keyAliases = new ArrayList<List<ColumnIdentifier>>();
         private final List<ColumnIdentifier> columnAliases = new ArrayList<ColumnIdentifier>();
+        private final List<Resolver> resolvers = new ArrayList<>();
+
         private final Map<ColumnIdentifier, Boolean> definedOrdering = new LinkedHashMap<ColumnIdentifier, Boolean>(); // Insertion ordering is important
         private final Set<ColumnIdentifier> staticColumns = new HashSet<ColumnIdentifier>();
 
@@ -198,17 +208,18 @@ public class CreateTableStatement extends SchemaAlteringStatement
             CreateTableStatement stmt = new CreateTableStatement(cfName, properties, ifNotExists, staticColumns);
 
             boolean hasNonCounters = false;
-            for (Map.Entry<ColumnIdentifier, CQL3Type.Raw> entry : definitions.entrySet())
+            for (Map.Entry<ColumnIdentifier, Pair<CQL3Type.Raw, Resolver>> entry : definitions.entrySet())
             {
                 ColumnIdentifier id = entry.getKey();
-                CQL3Type pt = entry.getValue().prepare(keyspace());
+                CQL3Type pt = entry.getValue().left.prepare(keyspace());
                 if (pt.isCollection() && ((CollectionType)pt.getType()).isMultiCell())
                     stmt.collections.put(id.bytes, (CollectionType)pt.getType());
-                if (entry.getValue().isCounter())
+                if (entry.getValue().left.isCounter())
                     stmt.hasCounters = true;
                 else
                     hasNonCounters = true;
-                stmt.columns.put(id, pt.getType()); // we'll remove what is not a column below
+
+                stmt.columns.put(id, Pair.<AbstractType, Resolver>create(pt.getType(), entry.getValue().right )); // we'll remove what is not a column below
             }
 
             if (keyAliases.isEmpty())
@@ -318,9 +329,11 @@ public class CreateTableStatement extends SchemaAlteringStatement
             return new ParsedStatement.Prepared(stmt);
         }
 
-        private AbstractType<?> getTypeAndRemove(Map<ColumnIdentifier, AbstractType> columns, ColumnIdentifier t) throws InvalidRequestException
+        private AbstractType<?> getTypeAndRemove(Map<ColumnIdentifier, Pair<AbstractType, Resolver>> columns, ColumnIdentifier t) throws InvalidRequestException
         {
-            AbstractType type = columns.get(t);
+            AbstractType type = columns.get(t).left;
+            Resolver resolver = columns.get(t).right;
+
             if (type == null)
                 throw new InvalidRequestException(String.format("Unknown definition %s referenced in PRIMARY KEY", t));
             if (type.isCollection() && type.isMultiCell())
@@ -333,10 +346,17 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
         public void addDefinition(ColumnIdentifier def, CQL3Type.Raw type, boolean isStatic)
         {
+            addDefinition(def, type, isStatic, null);
+        }
+
+
+        public void addDefinition(ColumnIdentifier def, CQL3Type.Raw type, boolean isStatic, String resolverClassName)
+        {
             definedNames.add(def);
-            definitions.put(def, type);
+            definitions.put(def, Pair.create(type, CellResolver.getResolver(resolverClassName)));
             if (isStatic)
                 staticColumns.add(def);
+            resolvers.add(CellResolver.getResolver(resolverClassName));
         }
 
         public void addKeyAliases(List<ColumnIdentifier> aliases)
