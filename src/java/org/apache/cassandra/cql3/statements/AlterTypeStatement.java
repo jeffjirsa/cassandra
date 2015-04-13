@@ -250,8 +250,11 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
         for (int i = 0; i < toUpdate.size(); i++)
         {
             AbstractType<?> t = updateWith(toUpdate.get(i), keyspace, toReplace, updated);
-            if (t == null)
+            if (t == null) {
+                if (updatedTypes == null)
+                    updatedTypes = new ArrayList<>(toUpdate);
                 continue;
+            }
 
             if (updatedTypes == null)
                 updatedTypes = new ArrayList<>(toUpdate);

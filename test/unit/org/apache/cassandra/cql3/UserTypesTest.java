@@ -32,6 +32,16 @@ public class UserTypesTest extends CQLTester
     }
 
     @Test
+    public void testCassandra9148() throws Throwable
+    {
+        String ut1 = createType("CREATE TYPE %s (a int)");
+        createTable("CREATE TABLE %s (x int PRIMARY KEY, y frozen < map < text, " + KEYSPACE + "." + ut1 + "> >)");
+        execute("INSERT INTO %s (x, y) VALUES(1, {'firstValue':{a:1}})");
+        execute("ALTER TYPE " + KEYSPACE + "." + ut1 + " ADD b int");
+        execute("INSERT INTO %s (x, y) VALUES(2, {'secondValue':{a:2, b:2}})");
+    }
+
+    @Test
     public void testCassandra8105() throws Throwable
     {
         String ut1 = createType("CREATE TYPE %s (a int, b int)");
