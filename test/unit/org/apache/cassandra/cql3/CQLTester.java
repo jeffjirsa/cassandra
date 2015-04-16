@@ -1067,6 +1067,11 @@ public abstract class CQLTester
         throw new IllegalArgumentException("Unsupported value type (value is " + value + ")");
     }
 
+    protected Object userType(Object...values)
+    {
+        return new TupleValue(values).toByteBuffer();
+    }
+
     private static class TupleValue
     {
         private final Object[] values;
