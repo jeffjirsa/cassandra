@@ -175,4 +175,9 @@ public class StreamManager implements StreamManagerMBean
     {
         return notifier.getNotificationInfo();
     }
+
+    public boolean isReceivingStreams()
+    {
+        return !receivingStreams.isEmpty();
+    }
 }

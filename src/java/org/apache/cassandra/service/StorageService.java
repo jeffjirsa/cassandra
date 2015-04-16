@@ -235,6 +235,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /* Are we starting this node in bootstrap mode? */
     private volatile boolean isBootstrapMode;
 
+    /* Are we currently rebuilding */
+    private volatile boolean isRebuilding = false;
+
     /* we bootstrap but do NOT join the ring unless told to do so */
     private boolean isSurveyMode= Boolean.parseBoolean(System.getProperty("cassandra.write_survey", "false"));
 
@@ -1051,6 +1054,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void rebuild(String sourceDc)
     {
         logger.info("rebuild from dc: {}", sourceDc == null ? "(any dc)" : sourceDc);
+        isRebuilding = true;
 
         RangeStreamer streamer = new RangeStreamer(tokenMetadata,
                                                    null,
@@ -1079,6 +1083,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // This is used exclusively through JMX, so log the full trace but only throw a simple RTE
             logger.error("Error while rebuilding node", e.getCause());
             throw new RuntimeException("Error while rebuilding node: " + e.getCause().getMessage());
+        }
+        finally
+        {
+            isRebuilding = false;
         }
     }
 
@@ -1252,6 +1260,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean isBootstrapMode()
     {
         return isBootstrapMode;
+    }
+
+    public boolean isRebuilding()
+    {
+        return isRebuilding;
     }
 
     public TokenMetadata getTokenMetadata()

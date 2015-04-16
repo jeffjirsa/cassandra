@@ -25,6 +25,8 @@ import java.util.*;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.StreamManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -263,6 +265,11 @@ public class SliceQueryFilter implements IDiskAtomFilter
 
     protected boolean respectTombstoneThresholds()
     {
+        if(StorageService.instance.isBootstrapMode() ||
+                StorageService.instance.isRebuilding() ||
+                StreamManager.instance.isReceivingStreams() )
+            return false;
+
         return true;
     }
 
