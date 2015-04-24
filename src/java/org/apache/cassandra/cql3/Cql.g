@@ -269,6 +269,8 @@ cqlStatement returns [ParsedStatement stmt]
     | st35=listRolesStatement          { $stmt = st35; }
     | st36=grantRoleStatement          { $stmt = st36; }
     | st37=revokeRoleStatement         { $stmt = st37; }
+    | st38=showVariablesStatement      { $stmt = st38; }
+    | st39=setVariableStatement        { $stmt = st39; }
     ;
 
 /*
@@ -1099,6 +1101,25 @@ userPassword[RoleOptions opts]
     :  K_PASSWORD v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
     ;
 
+
+/*
+ * SHOW VARIABLES;
+ * SHOW VARIABLE 'phi_convict_threshold';
+ */
+ showVariablesStatement returns [InternalVariableStatement.ShowVariableStatement stmt]
+    : K_SHOW K_VARIABLES { $stmt = new InternalVariableStatement.ShowVariableStatement(); }
+    | K_SHOW K_VARIABLE variableName=STRING_LITERAL { $stmt = new InternalVariableStatement.ShowVariableStatement($variableName.text); }
+    ;
+
+/*
+ * SET VARIABLE var = value
+ */
+setVariableStatement returns [InternalVariableStatement.SetVariableStatement stmt]
+    : K_SET K_VARIABLE variableName=STRING_LITERAL '=' variableValue=STRING_LITERAL { $stmt = new InternalVariableStatement.SetVariableStatement($variableName.text, $variableValue.text); }
+    | K_SET K_VARIABLE variableName=STRING_LITERAL '=' variableValue=INTEGER { $stmt = new InternalVariableStatement.SetVariableStatement($variableName.text, $variableValue.text); }
+    ;
+
+
 /** DEFINITIONS **/
 
 // Column Identifiers.  These need to be treated differently from other
@@ -1624,6 +1645,9 @@ K_AUTHORIZE:   A U T H O R I Z E;
 K_DESCRIBE:    D E S C R I B E;
 K_EXECUTE:     E X E C U T E;
 K_NORECURSIVE: N O R E C U R S I V E;
+K_SHOW:        S H O W;
+K_VARIABLE:    V A R I A B L E;
+K_VARIABLES:   V A R I A B L E S;
 
 K_USER:        U S E R;
 K_USERS:       U S E R S;

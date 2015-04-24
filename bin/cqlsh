@@ -258,6 +258,7 @@ cqlsh_extra_syntax_rules = r'''
                    | <expandCommand>
                    | <exitCommand>
                    | <pagingCommand>
+                   | <setVariableCommand>
                    ;
 
 <describeCommand> ::= ( "DESCRIBE" | "DESC" )
@@ -287,7 +288,7 @@ cqlsh_extra_syntax_rules = r'''
                      | "LOCAL_ONE"
                      ;
 
-<showCommand> ::= "SHOW" what=( "VERSION" | "HOST" | "SESSION" sessionid=<uuid> )
+<showCommand> ::= "SHOW" what=( "VERSION" | "HOST" | "SESSION" sessionid=<uuid> | "VARIABLES" | "VARIABLE" variable=<quotedStringLiteral> )
                 ;
 
 <sourceCommand> ::= "SOURCE" fname=<stringLiteral>
@@ -325,6 +326,9 @@ cqlsh_extra_syntax_rules = r'''
 
 <pagingCommand> ::= "PAGING" ( switch=( "ON" | "OFF" ) )?
                   ;
+
+<setVariableCommand> ::= "SET VARIABLE" (variable=<stringLiteral>)
+                        ;
 
 <exitCommand> ::= "exit" | "quit"
                 ;
@@ -705,6 +709,12 @@ class Shell(cmd.Cmd):
                (self.applycolor(self.get_cluster_name(), BLUE),
                 self.hostname,
                 self.port)
+
+    def show_variables(self):
+        self.perform_statement("""SHOW VARIABLES;""")
+
+    def show_variable(self, variable):
+        self.perform_statement("""SHOW VARIABLE %s; """ % variable)
 
     def show_version(self):
         vers = self.connection_versions.copy()
@@ -1800,6 +1810,11 @@ class Shell(cmd.Cmd):
         elif showwhat.startswith('session'):
             session_id = parsed.get_binding('sessionid').lower()
             self.show_session(UUID(session_id))
+        elif showwhat == 'variables':
+            self.show_variables()
+        elif showwhat.startswith('variable'):
+            variable = parsed.get_binding('variable').lower()
+            self.show_variable(variable)
         else:
             self.printerr('Wait, how do I show %r?' % (showwhat,))
 

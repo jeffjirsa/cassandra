@@ -635,14 +635,29 @@ public class DatabaseDescriptor
         return authenticator;
     }
 
+    public static String getAuthenticatorName()
+    {
+        return conf.authenticator;
+    }
+
     public static IAuthorizer getAuthorizer()
     {
         return authorizer;
     }
 
+    public static String getAuthorizerName()
+    {
+        return conf.authorizer;
+    }
+
     public static IRoleManager getRoleManager()
     {
         return roleManager;
+    }
+
+    public static String getRoleManagerName()
+    {
+        return conf.role_manager;
     }
 
     public static int getPermissionsValidity()
@@ -670,6 +685,11 @@ public class DatabaseDescriptor
     public static int getRolesValidity()
     {
         return conf.roles_validity_in_ms;
+    }
+
+    public static void setRolesValidity(int rolesValidity)
+    {
+        conf.roles_validity_in_ms = rolesValidity;
     }
 
     public static int getRolesCacheMaxEntries()
@@ -753,10 +773,19 @@ public class DatabaseDescriptor
     {
         snitch = eps;
     }
+    public static String getEndpointSnitchName()
+    {
+        return conf.endpoint_snitch;
+    }
 
     public static IRequestScheduler getRequestScheduler()
     {
         return requestScheduler;
+    }
+
+    public static String getRequestSchedulerName()
+    {
+        return conf.request_scheduler;
     }
 
     public static RequestSchedulerOptions getRequestSchedulerOptions()
@@ -772,6 +801,11 @@ public class DatabaseDescriptor
     public static int getColumnIndexSize()
     {
         return conf.column_index_size_in_kb * 1024;
+    }
+
+    public static void setColumnIndexSize(int columnIndexSize)
+    {
+        conf.column_index_size_in_kb = columnIndexSize;
     }
 
     public static int getBatchSizeWarnThreshold()
@@ -792,6 +826,11 @@ public class DatabaseDescriptor
     public static void setBatchSizeFailThresholdInKB(int threshold)
     {
         conf.batch_size_fail_threshold_in_kb = threshold;
+    }
+
+    public static void setBatchSizeWarnThresholdInKB(int threshold)
+    {
+        conf.batch_size_warn_threshold_in_kb = threshold;
     }
 
     public static Collection<String> getInitialTokens()
@@ -1130,6 +1169,11 @@ public class DatabaseDescriptor
         return conf.saved_caches_directory;
     }
 
+    public static String getSeedProviderName()
+    {
+        return conf.seed_provider.class_name;
+    }
+
     public static Set<InetAddress> getSeeds()
     {
         return ImmutableSet.<InetAddress>builder().addAll(seedProvider.getSeeds()).build();
@@ -1314,6 +1358,11 @@ public class DatabaseDescriptor
         return conf.commit_failure_policy;
     }
 
+    public static String getCommitFailurePolicyName()
+    {
+        return conf.commit_failure_policy.name();
+    }
+
     public static boolean isSnapshotBeforeCompaction()
     {
         return conf.snapshot_before_compaction;
@@ -1447,6 +1496,11 @@ public class DatabaseDescriptor
         return conf.batchlog_replay_throttle_in_kb;
     }
 
+    public static void setBatchlogReplayThrottleInKB(int throttleInKB)
+    {
+        conf.batchlog_replay_throttle_in_kb = throttleInKB;
+    }
+
     public static void setHintedHandoffThrottleInKB(Integer throttleInKB)
     {
         conf.hinted_handoff_throttle_in_kb = throttleInKB;
@@ -1482,6 +1536,11 @@ public class DatabaseDescriptor
         return FBUtilities.isWindows() ? -1 : conf.sstable_preemptive_open_interval_in_mb;
     }
 
+    public static void setSSTablePreemptiveOpenIntervalInMB(int intervalInMB)
+    {
+        conf.sstable_preemptive_open_interval_in_mb = intervalInMB;
+    }
+
     public static boolean getTrickleFsync()
     {
         return conf.trickle_fsync;
@@ -1500,6 +1559,11 @@ public class DatabaseDescriptor
     public static long getIndexSummaryCapacityInMB()
     {
         return indexSummaryCapacityInMB;
+    }
+
+    public static void setIndexSummaryCapacityInMB(long indexSummaryCapacity)
+    {
+        indexSummaryCapacityInMB = indexSummaryCapacity;
     }
 
     public static int getKeyCacheSavePeriod()
@@ -1550,6 +1614,11 @@ public class DatabaseDescriptor
     public static long getCounterCacheSizeInMB()
     {
         return counterCacheSizeInMB;
+    }
+
+    public static void setCounterCacheSizeInMB(int counterCacheSize)
+    {
+        counterCacheSizeInMB = counterCacheSize;
     }
 
     public static void setRowCacheKeysToSave(int rowCacheKeysToSave)
@@ -1631,9 +1700,31 @@ public class DatabaseDescriptor
         }
     }
 
+    public static String getMemtableAllocationTypeName()
+    {
+        switch (conf.memtable_allocation_type)
+        {
+            case unslabbed_heap_buffers:
+                return "unslabbed_heap_buffers";
+            case heap_buffers:
+                return "heap_buffers";
+            case offheap_buffers:
+                return "offheap_buffers";
+            case offheap_objects:
+                return "offheap_objects";
+            default:
+                throw new AssertionError();
+        }
+    }
+
     public static int getIndexSummaryResizeIntervalInMinutes()
     {
         return conf.index_summary_resize_interval_in_minutes;
+    }
+
+    public static void setIndexSummaryResizeIntervalInMinutes(int minutes)
+    {
+        conf.index_summary_resize_interval_in_minutes = minutes;
     }
 
     public static boolean hasLargeAddressSpace()
@@ -1657,9 +1748,19 @@ public class DatabaseDescriptor
         return conf.tracetype_repair_ttl;
     }
 
+    public static void setTracetypeRepairTTL(int tracetypeRepairTTL)
+    {
+        conf.tracetype_repair_ttl = tracetypeRepairTTL;
+    }
+
     public static int getTracetypeQueryTTL()
     {
         return conf.tracetype_query_ttl;
+    }
+
+    public static void setTracetypeQueryTTL(int tracetypeQueryTTL)
+    {
+        conf.tracetype_query_ttl = tracetypeQueryTTL;
     }
 
     public static String getOtcCoalescingStrategy()
