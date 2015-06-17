@@ -26,6 +26,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Longs;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -518,6 +519,17 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("saved_caches_directory must not be the same as any data_file_directories", false);
         }
 
+        if (conf.archive_data_file_directories != null)
+        {
+            for (String datadir : conf.archive_data_file_directories)
+            {
+                if (datadir.equals(conf.commitlog_directory))
+                    throw new ConfigurationException("commitlog_directory must not be the same as any archive_data_file_directories", false);
+                if (datadir.equals(conf.saved_caches_directory))
+                    throw new ConfigurationException("saved_caches_directory must not be the same as any archive_data_file_directories", false);
+            }
+        }
+
         if (conf.commitlog_directory.equals(conf.saved_caches_directory))
             throw new ConfigurationException("saved_caches_directory must not be the same as the commitlog_directory", false);
 
@@ -714,6 +726,14 @@ public class DatabaseDescriptor
             for (String dataFileDirectory : conf.data_file_directories)
             {
                 FileUtils.createDirectory(dataFileDirectory);
+            }
+
+            if (conf.archive_data_file_directories != null && conf.archive_data_file_directories.length > 0)
+            {
+                for (String dataFileDirectory : conf.data_file_directories)
+                {
+                    FileUtils.createDirectory(dataFileDirectory);
+                }
             }
 
             if (conf.commitlog_directory == null)
@@ -1086,7 +1106,17 @@ public class DatabaseDescriptor
 
     public static String[] getAllDataFileLocations()
     {
+        return ArrayUtils.addAll(conf.data_file_directories, conf.archive_data_file_directories);
+    }
+
+    public static String[] getStandardDataFileLocations()
+    {
         return conf.data_file_directories;
+    }
+
+    public static String[] getArchiveDataFileLocations()
+    {
+        return conf.archive_data_file_directories;
     }
 
     public static String getCommitLogLocation()

@@ -1665,6 +1665,18 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sstableMetadata.repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE;
     }
 
+    public boolean isArchivedDiskDirectory()
+    {
+        if (DatabaseDescriptor.getArchiveDataFileLocations() == null)
+            return false;
+
+        // descriptor.directory = CF directory
+        // n = KS directory
+        // n parent = data directory, either archive or standard
+        File n = descriptor.directory.getParentFile();
+        return Arrays.asList(DatabaseDescriptor.getArchiveDataFileLocations()).contains(n.getParentFile().toString());
+    }
+
     /**
      * TODO: Move someplace reusable
      */

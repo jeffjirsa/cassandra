@@ -27,12 +27,15 @@ public final class DateTieredCompactionStrategyOptions
     protected static final TimeUnit DEFAULT_TIMESTAMP_RESOLUTION = TimeUnit.MICROSECONDS;
     protected static final double DEFAULT_MAX_SSTABLE_AGE_DAYS = 365;
     protected static final long DEFAULT_BASE_TIME_SECONDS = 60;
+    protected static final long DEFAULT_ARCHIVE_SSTABLE_AGE_DAYS = Long.MAX_VALUE;
     protected static final String TIMESTAMP_RESOLUTION_KEY = "timestamp_resolution";
     protected static final String MAX_SSTABLE_AGE_KEY = "max_sstable_age_days";
     protected static final String BASE_TIME_KEY = "base_time_seconds";
+    protected static final String ARCHIVE_SSTABLE_AGE_KEY = "archive_sstables_age_days";
 
     protected final long maxSSTableAge;
     protected final long baseTime;
+    protected final long sstableArchiveAge;
 
     public DateTieredCompactionStrategyOptions(Map<String, String> options)
     {
@@ -43,12 +46,16 @@ public final class DateTieredCompactionStrategyOptions
         maxSSTableAge = Math.round(fractionalDays * timestampResolution.convert(1, TimeUnit.DAYS));
         optionValue = options.get(BASE_TIME_KEY);
         baseTime = timestampResolution.convert(optionValue == null ? DEFAULT_BASE_TIME_SECONDS : Long.parseLong(optionValue), TimeUnit.SECONDS);
+        optionValue = options.get(ARCHIVE_SSTABLE_AGE_KEY);
+        fractionalDays = optionValue == null ? DEFAULT_ARCHIVE_SSTABLE_AGE_DAYS : Double.parseDouble(optionValue);
+        sstableArchiveAge = Math.round(fractionalDays * timestampResolution.convert(1, TimeUnit.DAYS));
     }
 
     public DateTieredCompactionStrategyOptions()
     {
         maxSSTableAge = Math.round(DEFAULT_MAX_SSTABLE_AGE_DAYS * DEFAULT_TIMESTAMP_RESOLUTION.convert(1, TimeUnit.DAYS));
         baseTime = DEFAULT_TIMESTAMP_RESOLUTION.convert(DEFAULT_BASE_TIME_SECONDS, TimeUnit.SECONDS);
+        sstableArchiveAge = Long.MAX_VALUE;
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options, Map<String, String> uncheckedOptions) throws  ConfigurationException
@@ -92,9 +99,25 @@ public final class DateTieredCompactionStrategyOptions
             throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, BASE_TIME_KEY), e);
         }
 
+        optionValue = options.get(ARCHIVE_SSTABLE_AGE_KEY);
+        try
+        {
+            double archiveSSTableAge = optionValue == null ? DEFAULT_ARCHIVE_SSTABLE_AGE_DAYS : Double.parseDouble(optionValue);
+            if (archiveSSTableAge < 0)
+            {
+                throw new ConfigurationException(String.format("%s must be non-negative: %.2f", ARCHIVE_SSTABLE_AGE_KEY, archiveSSTableAge));
+            }
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, ARCHIVE_SSTABLE_AGE_KEY), e);
+        }
+
+
         uncheckedOptions.remove(MAX_SSTABLE_AGE_KEY);
         uncheckedOptions.remove(BASE_TIME_KEY);
         uncheckedOptions.remove(TIMESTAMP_RESOLUTION_KEY);
+        uncheckedOptions.remove(ARCHIVE_SSTABLE_AGE_KEY);
 
         return uncheckedOptions;
     }

@@ -2459,6 +2459,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return locations;
     }
 
+    public String[] getStandardDataFileLocations()
+    {
+        String[] locations = DatabaseDescriptor.getStandardDataFileLocations();
+        for (int i = 0; i < locations.length; i++)
+            locations[i] = FileUtils.getCanonicalPath(locations[i]);
+        return locations;
+    }
+
+    public String[] getArchiveDataFileLocations()
+    {
+        String[] locations = DatabaseDescriptor.getArchiveDataFileLocations();
+        for (int i = 0; i < locations.length; i++)
+            locations[i] = FileUtils.getCanonicalPath(locations[i]);
+        return locations;
+    }
+
     public String getCommitLogLocation()
     {
         return FileUtils.getCanonicalPath(DatabaseDescriptor.getCommitLogLocation());

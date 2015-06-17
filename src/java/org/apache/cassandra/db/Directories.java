@@ -39,6 +39,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSet.Builder;
 import com.google.common.collect.Iterables;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,12 +87,31 @@ public class Directories
     public static final String SECONDARY_INDEX_NAME_SEPARATOR = ".";
 
     public static final DataDirectory[] dataDirectories;
+    public static final DataDirectory[] archiveDataDirectories;
+    public static final DataDirectory[] standardDataDirectories;
+
     static
     {
-        String[] locations = DatabaseDescriptor.getAllDataFileLocations();
-        dataDirectories = new DataDirectory[locations.length];
-        for (int i = 0; i < locations.length; ++i)
-            dataDirectories[i] = new DataDirectory(new File(locations[i]));
+        String[] standardDataFileLocations = DatabaseDescriptor.getStandardDataFileLocations();
+        standardDataDirectories = new DataDirectory[standardDataFileLocations.length];
+        for (int i = 0; i < standardDataFileLocations.length; ++i)
+            standardDataDirectories[i] = new DataDirectory(new File(standardDataFileLocations[i]));
+
+        String[] archiveDataFileLocations = DatabaseDescriptor.getArchiveDataFileLocations();
+        if (archiveDataFileLocations != null)
+        {
+            archiveDataDirectories = new DataDirectory[archiveDataFileLocations.length];
+            for (int i = 0; i < archiveDataFileLocations.length; ++i)
+                archiveDataDirectories[i] = new DataDirectory(new File(archiveDataFileLocations[i]));
+
+            dataDirectories = ArrayUtils.addAll(standardDataDirectories, archiveDataDirectories);
+        }
+        else
+        {
+            archiveDataDirectories = new DataDirectory[0];
+            dataDirectories = standardDataDirectories;
+        }
+
     }
 
     /**
@@ -169,6 +189,8 @@ public class Directories
 
     private final CFMetaData metadata;
     private final File[] dataPaths;
+    private final File[] standardDataPaths;
+    private final File[] archiveDataPaths;
 
     /**
      * Create Directories of given ColumnFamily.
@@ -193,15 +215,24 @@ public class Directories
              directoryName = metadata.cfName + "-" + cfId;
         }
 
-        this.dataPaths = new File[dataDirectories.length];
+        this.standardDataPaths = new File[standardDataDirectories.length];
+        this.archiveDataPaths = new File[archiveDataDirectories.length];
+
         // If upgraded from version less than 2.1, use existing directories
         String oldSSTableRelativePath = join(metadata.ksName,
                                          idx > 0 ? metadata.cfName.substring(0, idx) : metadata.cfName);
-        for (int i = 0; i < dataDirectories.length; ++i)
+        for (int i = 0; i < standardDataDirectories.length; ++i)
         {
             // check if old SSTable directory exists
-            dataPaths[i] = new File(dataDirectories[i].location, oldSSTableRelativePath);
+            standardDataPaths[i] = new File(standardDataDirectories[i].location, oldSSTableRelativePath);
         }
+        for (int i = 0 ; i < archiveDataDirectories.length; ++i)
+        {
+            archiveDataPaths[i] = new File(archiveDataDirectories[i].location, oldSSTableRelativePath);
+        }
+
+        this.dataPaths = ArrayUtils.addAll(standardDataPaths, archiveDataPaths);
+
         boolean olderDirectoryExists = Iterables.any(Arrays.asList(dataPaths), new Predicate<File>()
         {
             public boolean apply(File file)
@@ -287,13 +318,38 @@ public class Directories
      */
     public DataDirectory getWriteableLocation(long writeSize)
     {
+        return getWriteableLocation(writeSize, false);
+    }
+
+    /**
+     * Returns a non-blacklisted data directory that _currently_ has {@code writeSize} bytes as usable space.
+     *
+     * @param writeSize required space in bytes
+     * @param getArchiveDirectory boolean to specify which set of data directories to search
+     * @throws IOError if all directories are blacklisted.
+     */
+    public DataDirectory getWriteableLocation(long writeSize, boolean getArchiveDirectory)
+    {
         List<DataDirectoryCandidate> candidates = new ArrayList<>();
 
         long totalAvailable = 0L;
 
+        DataDirectory[] dataDirs;
+        if(getArchiveDirectory)
+        {
+            // data directories are guaranteed to defined
+            // but archive data directories are not
+            if (archiveDataDirectories == null)
+                throw new IOError(new IOException("No archive data directories are configured"));
+
+            dataDirs = archiveDataDirectories;
+        }
+        else
+            dataDirs = standardDataDirectories;
+
         // pick directories with enough space and so that resulting sstable dirs aren't blacklisted for writes.
         boolean tooBig = false;
-        for (DataDirectory dataDir : dataDirectories)
+        for (DataDirectory dataDir : dataDirs)
         {
             if (BlacklistedDirectories.isUnwritable(getLocationForDisk(dataDir)))
             {
@@ -311,6 +367,10 @@ public class Directories
             candidates.add(candidate);
             totalAvailable += candidate.availableSpace;
         }
+
+        // If we're looking for archival storage, but can't find it, see if standard is available
+        if (candidates.isEmpty() && getArchiveDirectory)
+            return getWriteableLocation(writeSize, false);
 
         if (candidates.isEmpty())
             if (tooBig)
@@ -742,14 +802,36 @@ public class Directories
     {
         for (int i = 0; i < dataDirectories.length; ++i)
             dataDirectories[i] = new DataDirectory(new File(loc));
+
+        for (int i = 0 ; i < standardDataDirectories.length; ++i)
+            standardDataDirectories[i] = new DataDirectory(new File(loc));
+
+        for (int i = 0; i < archiveDataDirectories.length; ++i)
+            archiveDataDirectories[i] = new DataDirectory(new File(loc));
+
     }
 
     @VisibleForTesting
     static void resetDataDirectoriesAfterTest()
     {
-        String[] locations = DatabaseDescriptor.getAllDataFileLocations();
-        for (int i = 0; i < locations.length; ++i)
-            dataDirectories[i] = new DataDirectory(new File(locations[i]));
+        int j = 0;
+        String[] standardLocations = DatabaseDescriptor.getStandardDataFileLocations();
+        for (int i = 0; i < standardLocations.length; ++i)
+        {
+            standardDataDirectories[i] = new DataDirectory(new File(standardLocations[i]));
+            dataDirectories[j] = standardDataDirectories[i];
+            j++;
+        }
+
+        String[] archiveLocations = DatabaseDescriptor.getArchiveDataFileLocations();
+        if (archiveLocations != null)
+        {
+            for (int i = 0; i < archiveLocations.length; ++i) {
+                archiveDataDirectories[i] = new DataDirectory(new File(archiveLocations[i]));
+                dataDirectories[j] = archiveDataDirectories[i];
+                j++;
+            }
+        }
     }
     
     private class TrueFilesSizeVisitor extends SimpleFileVisitor<Path>

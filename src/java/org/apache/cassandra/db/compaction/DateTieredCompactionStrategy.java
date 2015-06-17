@@ -22,7 +22,6 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +29,7 @@ import org.apache.cassandra.cql3.statements.CFPropDefs;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Pair;
 
 public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
@@ -66,12 +66,26 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         {
             List<SSTableReader> latestBucket = getNextBackgroundSSTables(gcBefore);
 
-            if (latestBucket.isEmpty())
-                return null;
+            // Normal compaction candidates
+            if ( !latestBucket.isEmpty() )
+            {
+                LifecycleTransaction modifier = cfs.getTracker().tryModify(latestBucket, OperationType.COMPACTION);
+                if (modifier != null)
+                    return new DateTieredCompactionTask(cfs, modifier, gcBefore, false);
+            }
+            // Archive compaction candidates
+            else
+            {
+                List<SSTableReader> archiveCandidates = getArchiveCandidates(gcBefore);
+                if (archiveCandidates.isEmpty())
+                    return null;
 
-            LifecycleTransaction modifier = cfs.getTracker().tryModify(latestBucket, OperationType.COMPACTION);
-            if (modifier != null)
-                return new CompactionTask(cfs, modifier, gcBefore, false);
+                LifecycleTransaction modifier = cfs.getTracker().tryModify(archiveCandidates, OperationType.COMPACTION);
+                if (modifier != null)
+                    return new DateTieredCompactionTask(cfs, modifier, gcBefore, true);
+
+            }
+            return null;
         }
     }
 
@@ -141,6 +155,22 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         return null;
     }
 
+    private List<SSTableReader> getArchiveCandidates(int gcBefore)
+    {
+        if (!isEnabled() || cfs.getSSTables().isEmpty())
+            return Collections.emptyList();
+
+        long now = getNow();
+
+        Set<SSTableReader> uncompacting = Sets.intersection(sstables, cfs.getUncompactingSSTables());
+        Set<SSTableReader> candidates = Sets.newHashSet(filterSuspectSSTables(uncompacting));
+
+        Iterable<SSTableReader> iCandidates = filterNonArchivableSSTables(Lists.newArrayList(candidates), options.sstableArchiveAge, now);
+
+        return  Lists.newArrayList(iCandidates);
+    }
+
+
     /**
      * Gets the timestamp that DateTieredCompactionStrategy considers to be the "current time".
      * @return the maximum timestamp across all SSTables.
@@ -170,6 +200,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         if (maxSSTableAge == 0)
             return sstables;
         final long cutoff = now - maxSSTableAge;
+
         return Iterables.filter(sstables, new Predicate<SSTableReader>()
         {
             @Override
@@ -178,6 +209,32 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
                 return sstable.getMaxTimestamp() >= cutoff;
             }
         });
+    }
+
+    /**
+     * Removes all sstables that aren't eligible to be archives max timestamp older than maxSSTableAge.
+     * @param sstables all sstables to consider
+     * @param archiveSSTableAge the age in milliseconds when an SSTable can be moved to archive tier storage
+     * @param now current time. SSTables with max timestamp less than (now - maxSSTableAge) are filtered.
+     * @return a list of sstables with the oldest sstables excluded
+     */
+    @VisibleForTesting
+    static Iterable<SSTableReader> filterNonArchivableSSTables(List<SSTableReader> sstables, long archiveSSTableAge, long now)
+    {
+        if (archiveSSTableAge == 0)
+            return Collections.EMPTY_LIST;
+
+        final long archiveCutoff = now - archiveSSTableAge;
+
+        return Iterables.filter(sstables, new Predicate<SSTableReader>()
+        {
+            @Override
+            public boolean apply(SSTableReader sstable)
+            {
+                return (!sstable.isArchivedDiskDirectory() && sstable.getMaxTimestamp() < archiveCutoff );
+            }
+        });
+
     }
 
     /**
@@ -192,6 +249,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
             sstableMinTimestampPairs.add(Pair.create(sstable, sstable.getMinTimestamp()));
         return sstableMinTimestampPairs;
     }
+
     @Override
     public void addSSTable(SSTableReader sstable)
     {
