@@ -368,10 +368,6 @@ public class Directories
             totalAvailable += candidate.availableSpace;
         }
 
-        // If we're looking for archival storage, but can't find it, see if standard is available
-        if (candidates.isEmpty() && getArchiveDirectory)
-            return getWriteableLocation(writeSize, false);
-
         if (candidates.isEmpty())
             if (tooBig)
                 return null;
