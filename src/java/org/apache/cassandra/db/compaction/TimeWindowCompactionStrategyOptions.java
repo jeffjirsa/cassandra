@@ -71,7 +71,7 @@ public final class TimeWindowCompactionStrategyOptions
         }
         catch (IllegalArgumentException e)
         {
-            throw new ConfigurationException(String.format("%s is not valid for  %s", optionValue, TIMESTAMP_RESOLUTION_KEY));
+            throw new ConfigurationException(String.format("%s is not valid for %s", optionValue, TIMESTAMP_RESOLUTION_KEY));
         }
 
 
@@ -84,7 +84,7 @@ public final class TimeWindowCompactionStrategyOptions
         }
         catch (IllegalArgumentException e)
         {
-            throw new ConfigurationException(String.format("%s is valid for for %s", optionValue, COMPACTION_WINDOW_UNIT_KEY), e);
+            throw new ConfigurationException(String.format("%s is not valid for %s", optionValue, COMPACTION_WINDOW_UNIT_KEY), e);
         }
 
         optionValue = options.get(COMPACTION_WINDOW_SIZE_KEY);
