@@ -40,8 +40,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.statements.CFPropDefs;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
-import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategyOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.utils.Pair;
@@ -217,9 +215,14 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         {
             long tStamp = f.getMaxTimestamp();
             if (timestampResolution.equals(TimeUnit.MICROSECONDS))
-                tStamp = tStamp / 1000;
+                tStamp = tStamp / 1000L;
+            else if (timestampResolution.equals(TimeUnit.NANOSECONDS))
+                tStamp = tStamp / 1000000L;
             else if (timestampResolution.equals(TimeUnit.SECONDS))
-                tStamp = tStamp * 1000;
+                tStamp = tStamp * 1000L;
+            else // Better be milliseconds
+                assert TimeWindowCompactionStrategyOptions.validTimestampTimeUnits.contains(timestampResolution);
+
             Pair<Long,Long> bounds = getWindowBoundsInMillis(sstableWindowUnit, sstableWindowSize, tStamp);
             buckets.put(bounds.left, f );
         }
@@ -235,16 +238,19 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
         Pair<Long,Long> nowBounds = getWindowBoundsInMillis(options.sstableWindowUnit, options.sstableWindowSize, now);
         now = nowBounds.left;
-
-        for(Long key : tasks.keys())
+        for(Long key : tasks.keySet())
         {
             // For current window, make sure it's compactable
-            if (key.compareTo(now) == 0 && tasks.get(key).size() >= cfs.getMinimumCompactionThreshold())
+            if (key.compareTo(now) >= 0 && tasks.get(key).size() >= cfs.getMinimumCompactionThreshold())
+            {
                 n++;
-            else if (key.compareTo(now) != 0 && tasks.get(key).size() >= 2)
+            }
+            else if (key.compareTo(now) < 0 && tasks.get(key).size() >= 2)
+            {
                 n++;
+            }
         }
-        estimatedRemainingTasks = n;
+        this.estimatedRemainingTasks = n;
     }
 
 
@@ -286,19 +292,23 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
                                                                                                 stcsOptions.bucketLow,
                                                                                                 stcsOptions.minSSTableSize);
                 logger.debug("Using STCS compaction for first window of bucket: data files {} , options {}", pairs, stcsOptions);
-                return SizeTieredCompactionStrategy.mostInterestingBucket(stcsBuckets, minThreshold, maxThreshold);
+                List<SSTableReader> stcsInterestingBucket =  SizeTieredCompactionStrategy.mostInterestingBucket(stcsBuckets, minThreshold, maxThreshold);
 
+                // If the tables in the current bucket aren't eligible in the STCS strategy, we'll skip it and look for other buckets
+                if(!stcsInterestingBucket.isEmpty())
+                    return stcsInterestingBucket;
             }
             else if (bucket.size() >= 2 && key < now)
             {
                 // If we're not in the newest bucket, compact as many sstables as quickly as possible until there's only 1 left
+                logger.debug("bucket size {} >= 2 and not in current bucket, compacting what's here: {}", bucket.size(), bucket);
                 return trimToThreshold(bucket, maxThreshold);
             }
             else
             {
+                logger.debug("No compaction necessary for bucket size {} , key {}, now {}", bucket.size(), key, now);
             }
         }
-
         return Collections.emptyList();
     }
 
@@ -344,7 +354,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
     public int getEstimatedRemainingTasks()
     {
-        return estimatedRemainingTasks;
+        return this.estimatedRemainingTasks;
     }
 
     public long getMaxSSTableBytes()

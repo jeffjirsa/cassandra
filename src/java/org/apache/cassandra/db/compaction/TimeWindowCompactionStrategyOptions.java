@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.compaction;
 
+import com.google.common.collect.ImmutableList;
+
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -36,6 +38,9 @@ public final class TimeWindowCompactionStrategyOptions
     protected final int sstableWindowSize;
     protected final TimeUnit sstableWindowUnit;
     protected final TimeUnit timestampResolution;
+
+    protected final static ImmutableList<TimeUnit> validTimestampTimeUnits = ImmutableList.of(TimeUnit.SECONDS, TimeUnit.MILLISECONDS, TimeUnit.MICROSECONDS, TimeUnit.NANOSECONDS);
+    protected final static ImmutableList<TimeUnit> validWindowTimeUnits = ImmutableList.of(TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
 
     SizeTieredCompactionStrategyOptions stcsOptions;
 
@@ -58,7 +63,7 @@ public final class TimeWindowCompactionStrategyOptions
         sstableWindowUnit = DEFAULT_COMPACTION_WINDOW_UNIT;
         timestampResolution = DEFAULT_TIMESTAMP_RESOLUTION;
         sstableWindowSize = DEFAULT_COMPACTION_WINDOW_SIZE;
-        stcsOptions = new SizeTieredCompactionStrategyOptions();;
+        stcsOptions = new SizeTieredCompactionStrategyOptions();
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options, Map<String, String> uncheckedOptions) throws  ConfigurationException
@@ -67,7 +72,8 @@ public final class TimeWindowCompactionStrategyOptions
         try
         {
             if (optionValue != null)
-                TimeUnit.valueOf(optionValue);
+                if (!validTimestampTimeUnits.contains(TimeUnit.valueOf(optionValue)))
+                    throw new ConfigurationException(String.format("%s is not valid for %s", optionValue, TIMESTAMP_RESOLUTION_KEY));
         }
         catch (IllegalArgumentException e)
         {
@@ -79,7 +85,8 @@ public final class TimeWindowCompactionStrategyOptions
         try
         {
             if (optionValue != null)
-                TimeUnit.valueOf(optionValue);
+                if (!validWindowTimeUnits.contains(TimeUnit.valueOf(optionValue)))
+                    throw new ConfigurationException(String.format("%s is not valid for %s", optionValue, COMPACTION_WINDOW_UNIT_KEY));
 
         }
         catch (IllegalArgumentException e)
