@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.compaction;
 
+import com.google.common.collect.ImmutableList;
+
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -38,6 +40,9 @@ public final class TimeWindowCompactionStrategyOptions
     protected final TimeUnit timestampResolution;
 
     SizeTieredCompactionStrategyOptions stcsOptions;
+
+    protected final static ImmutableList<TimeUnit> validTimestampTimeUnits = ImmutableList.of(TimeUnit.SECONDS, TimeUnit.MILLISECONDS, TimeUnit.MICROSECONDS, TimeUnit.NANOSECONDS);
+    protected final static ImmutableList<TimeUnit> validWindowTimeUnits = ImmutableList.of(TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
 
     public TimeWindowCompactionStrategyOptions(Map<String, String> options)
     {
@@ -67,7 +72,8 @@ public final class TimeWindowCompactionStrategyOptions
         try
         {
             if (optionValue != null)
-                TimeUnit.valueOf(optionValue);
+                if (!validTimestampTimeUnits.contains(TimeUnit.valueOf(optionValue)))
+                    throw new ConfigurationException(String.format("%s is not valid for %s", optionValue, TIMESTAMP_RESOLUTION_KEY));
         }
         catch (IllegalArgumentException e)
         {
@@ -79,7 +85,8 @@ public final class TimeWindowCompactionStrategyOptions
         try
         {
             if (optionValue != null)
-                TimeUnit.valueOf(optionValue);
+                if (!validWindowTimeUnits.contains(TimeUnit.valueOf(optionValue)))
+                    throw new ConfigurationException(String.format("%s is not valid for %s", optionValue, COMPACTION_WINDOW_UNIT_KEY));
 
         }
         catch (IllegalArgumentException e)

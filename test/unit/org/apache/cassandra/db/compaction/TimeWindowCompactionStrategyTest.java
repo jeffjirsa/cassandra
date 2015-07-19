@@ -26,6 +26,9 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -37,14 +40,13 @@ import static org.junit.Assert.fail;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy.getWindowBoundsInMillis;
@@ -61,8 +63,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                                    SimpleStrategy.class,
-                                    KSMetaData.optsWithRF(1),
+                                    KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
     }
 
@@ -150,9 +151,10 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         for (int r = 0; r < 3; r++)
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
-            Mutation rm = new Mutation(KEYSPACE1, key.getKey());
-            rm.add(CF_STANDARD1, Util.cellname("column"), value, tstamp+r);
-            rm.apply();
+            new RowUpdateBuilder(cfs.metadata, r, key.getKey())
+                .clustering("column")
+                .add("val", value).build().applyUnsafe();
+
             cfs.forceBlockingFlush();
         }
         // Decrement the timestamp to simulate a timestamp in the past hour
@@ -160,9 +162,9 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         {
             // And add progressively more cells into each sstable
             DecoratedKey key = Util.dk(String.valueOf(r));
-            Mutation rm = new Mutation(KEYSPACE1, key.getKey());
-            rm.add(CF_STANDARD1, Util.cellname("column"), value, tstamp2 + r);
-            rm.apply();
+            new RowUpdateBuilder(cfs.metadata, r, key.getKey())
+                .clustering("column")
+                .add("val", value).build().applyUnsafe();
             cfs.forceBlockingFlush();
         }
 
@@ -201,9 +203,9 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             DecoratedKey key = Util.dk(String.valueOf(r));
             for(int i = 0 ; i < r ; i++)
             {
-                Mutation rm = new Mutation(KEYSPACE1, key.getKey());
-                rm.add(CF_STANDARD1, Util.cellname("column"), value, tstamp + r);
-                rm.apply();
+                new RowUpdateBuilder(cfs.metadata, tstamp + r, key.getKey())
+                    .clustering("column")
+                    .add("val", value).build().applyUnsafe();
             }
             cfs.forceBlockingFlush();
         }
@@ -233,16 +235,19 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
 
         // create 2 sstables
         DecoratedKey key = Util.dk(String.valueOf("expired"));
-        Mutation rm = new Mutation(KEYSPACE1, key.getKey());
-        rm.add(CF_STANDARD1, Util.cellname("column"), value, System.currentTimeMillis(), 1);
-        rm.apply();
+        new RowUpdateBuilder(cfs.metadata, System.currentTimeMillis(), 1, key.getKey())
+            .clustering("column")
+            .add("val", value).build().applyUnsafe();
+
         cfs.forceBlockingFlush();
         SSTableReader expiredSSTable = cfs.getSSTables().iterator().next();
         Thread.sleep(10);
+
         key = Util.dk(String.valueOf("nonexpired"));
-        rm = new Mutation(KEYSPACE1, key.getKey());
-        rm.add(CF_STANDARD1, Util.cellname("column"), value, System.currentTimeMillis());
-        rm.apply();
+        new RowUpdateBuilder(cfs.metadata, System.currentTimeMillis(), key.getKey())
+            .clustering("column")
+            .add("val", value).build().applyUnsafe();
+
         cfs.forceBlockingFlush();
         assertEquals(cfs.getSSTables().size(), 2);
 
