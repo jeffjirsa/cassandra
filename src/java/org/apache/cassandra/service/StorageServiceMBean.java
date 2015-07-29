@@ -104,6 +104,19 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String[] getAllDataFileLocations();
 
     /**
+     * Get the list of all standard data file locations from conf
+     * @return String array of all locations
+     */
+    public String[] getStandardDataFileLocations();
+
+    /**
+     * Get the list of all archive data file locations from conf
+     * @return String array of all locations
+     */
+    public String[] getArchiveDataFileLocations();
+
+    /**
+     *
      * Get location of the commit log
      * @return a string path
      */

@@ -330,4 +330,91 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         t.transaction.abort();
     }
 
+    /**
+     * Tests archiving and deleting fully expired sstables from archived storage
+     */
+    @Test
+    public void testArchiveSSTables() throws InterruptedException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
+        cfs.truncateBlocking();
+        cfs.disableAutoCompaction();
+
+        ByteBuffer value = ByteBuffer.wrap(new byte[100]);
+
+        // create 2 sstables
+        DecoratedKey key = Util.dk(String.valueOf("expired"));
+        Mutation rm = new Mutation(KEYSPACE1, key.getKey());
+        rm.add(CF_STANDARD1, Util.cellname("column"), value, System.currentTimeMillis(), 10);
+        rm.apply();
+        cfs.forceBlockingFlush();
+        SSTableReader expiredSSTable = cfs.getSSTables().iterator().next();
+        // DTCS uses highest timestamp in the system to determine now, so we need a delta
+        Thread.sleep(1050);
+        key = Util.dk(String.valueOf("nonexpired"));
+        rm = new Mutation(KEYSPACE1, key.getKey());
+        rm.add(CF_STANDARD1, Util.cellname("column"), value, System.currentTimeMillis());
+        rm.apply();
+        cfs.forceBlockingFlush();
+        assertEquals(cfs.getSSTables().size(), 2);
+
+        Map<String, String> options = new HashMap<>();
+
+        Thread.sleep(6000);
+
+        options.put(DateTieredCompactionStrategyOptions.BASE_TIME_KEY, "30");
+        options.put(DateTieredCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "MILLISECONDS");
+        options.put(DateTieredCompactionStrategyOptions.MAX_SSTABLE_AGE_KEY, Double.toString((1d / (24 * 60 * 60))));
+        options.put(DateTieredCompactionStrategyOptions.ARCHIVE_SSTABLE_KEY, "true");
+        DateTieredCompactionStrategy dtcs = new DateTieredCompactionStrategy(cfs, options);
+
+        for (SSTableReader sstable : cfs.getSSTables())
+            dtcs.addSSTable(sstable);
+        dtcs.startup();
+
+        // Past the 1 second max sstable age, so the expiring table should archive
+        // And the remaining sstable should be non-archived
+        final AbstractCompactionTask nextTask = dtcs.getNextBackgroundTask((int) (System.currentTimeMillis() / 1000));
+        assertNotNull(nextTask);
+        nextTask.execute(null);
+        Thread.sleep(1000);
+        int archivedTables = 0;
+        int nonArchivedTables = 0;
+        for (SSTableReader cfsstable : cfs.getSSTables())
+        {
+            if (cfsstable.isArchivedDiskDirectory())
+            {
+                // Track this new table as the original expired table, but also re-add it to test full expiration
+                expiredSSTable = cfsstable;
+                dtcs.addSSTable(cfsstable);
+                archivedTables++;
+            }
+            else
+                nonArchivedTables++;
+        }
+        // Should be 1 archived table, 1 nonarchived table
+        assert(nonArchivedTables == 1);
+        assert(archivedTables == 1);
+
+        Thread.sleep(4000);
+
+        // Past the 10 second TTL, so it should be ready to expire out one of the two tables
+        AbstractCompactionTask t = dtcs.getNextBackgroundTask((int) (System.currentTimeMillis()/1000));
+        assertNotNull(t);
+        assertEquals(1, Iterables.size(t.transaction.originals()));
+        SSTableReader sstable = t.transaction.originals().iterator().next();
+        assertEquals(sstable, expiredSSTable);
+        t.execute(null);
+
+        // Now there should be nothing left to compact
+        t = dtcs.getNextBackgroundTask((int) (System.currentTimeMillis()/1000));
+        assertNull(t);
+
+        // And the remaining sstable should be non-archived
+        for (SSTableReader cfsstable : cfs.getSSTables())
+            assert(!cfsstable.isArchivedDiskDirectory());
+
+    }
+
 }

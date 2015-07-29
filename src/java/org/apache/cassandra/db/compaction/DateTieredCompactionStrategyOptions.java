@@ -30,9 +30,11 @@ public final class DateTieredCompactionStrategyOptions
     protected static final String TIMESTAMP_RESOLUTION_KEY = "timestamp_resolution";
     protected static final String MAX_SSTABLE_AGE_KEY = "max_sstable_age_days";
     protected static final String BASE_TIME_KEY = "base_time_seconds";
+    protected static final String ARCHIVE_SSTABLE_KEY = "archive_sstables";
 
     protected final long maxSSTableAge;
     protected final long baseTime;
+    protected final boolean sstableArchive;
 
     public DateTieredCompactionStrategyOptions(Map<String, String> options)
     {
@@ -43,12 +45,19 @@ public final class DateTieredCompactionStrategyOptions
         maxSSTableAge = Math.round(fractionalDays * timestampResolution.convert(1, TimeUnit.DAYS));
         optionValue = options.get(BASE_TIME_KEY);
         baseTime = timestampResolution.convert(optionValue == null ? DEFAULT_BASE_TIME_SECONDS : Long.parseLong(optionValue), TimeUnit.SECONDS);
+        optionValue = options.get(ARCHIVE_SSTABLE_KEY);
+        if(Boolean.parseBoolean(optionValue))
+            sstableArchive = true;
+        else
+            sstableArchive = false;
     }
 
     public DateTieredCompactionStrategyOptions()
     {
         maxSSTableAge = Math.round(DEFAULT_MAX_SSTABLE_AGE_DAYS * DEFAULT_TIMESTAMP_RESOLUTION.convert(1, TimeUnit.DAYS));
         baseTime = DEFAULT_TIMESTAMP_RESOLUTION.convert(DEFAULT_BASE_TIME_SECONDS, TimeUnit.SECONDS);
+        sstableArchive = false;
+
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options, Map<String, String> uncheckedOptions) throws  ConfigurationException
@@ -92,6 +101,7 @@ public final class DateTieredCompactionStrategyOptions
             throw new ConfigurationException(String.format("%s is not a parsable int (base10) for %s", optionValue, BASE_TIME_KEY), e);
         }
 
+        uncheckedOptions.remove(ARCHIVE_SSTABLE_KEY);
         uncheckedOptions.remove(MAX_SSTABLE_AGE_KEY);
         uncheckedOptions.remove(BASE_TIME_KEY);
         uncheckedOptions.remove(TIMESTAMP_RESOLUTION_KEY);

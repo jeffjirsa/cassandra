@@ -49,6 +49,7 @@ import static org.junit.Assert.fail;
 public class DirectoriesTest
 {
     private static File tempDataDir;
+    private static File tempArchiveDir;
     private static final String KS = "ks";
     private static final String[] CFS = new String[] { "cf1", "ks" };
 
@@ -71,7 +72,11 @@ public class DirectoriesTest
         tempDataDir.delete(); // hack to create a temp dir
         tempDataDir.mkdir();
 
-        Directories.overrideDataDirectoriesForTest(tempDataDir.getPath());
+        tempArchiveDir = File.createTempFile("cassandraarchive", "unittest");
+        tempArchiveDir.delete();
+        tempArchiveDir.mkdir();
+
+        Directories.overrideDataDirectoriesForTest(tempDataDir.getPath(), tempArchiveDir.getPath());
         // Create two fake data dir for tests, one using CF directories, one that do not.
         createTestFiles();
     }
@@ -157,10 +162,18 @@ public class DirectoriesTest
         Directories parentDirectories = new Directories(PARENT_CFM);
         Directories indexDirectories = new Directories(INDEX_CFM);
         // secondary index has its own directory
+        boolean checked_index_directory = false;
         for (File dir : indexDirectories.getCFDirectories())
         {
-            assertEquals(cfDir(INDEX_CFM), dir);
+            // Ignore the archive directory
+            if(!dir.toString().contains("archive"))
+            {
+                assertEquals(cfDir(INDEX_CFM), dir);
+                checked_index_directory = true;
+            }
         }
+        assertEquals(checked_index_directory, true);
+
         Descriptor parentDesc = new Descriptor(parentDirectories.getDirectoryForNewSSTables(), KS, PARENT_CFM.cfName, 0, Descriptor.Type.FINAL);
         Descriptor indexDesc = new Descriptor(indexDirectories.getDirectoryForNewSSTables(), KS, INDEX_CFM.cfName, 0, Descriptor.Type.FINAL);
 
@@ -184,8 +197,8 @@ public class DirectoriesTest
         Descriptor indexSnapshot = new Descriptor(indexSnapshotDirectory, KS, INDEX_CFM.cfName, 0, Descriptor.Type.FINAL);
         createFile(indexSnapshot.filenameFor(Component.DATA), 40);
 
-        assertEquals(30, parentDirectories.trueSnapshotsSize());
-        assertEquals(40, indexDirectories.trueSnapshotsSize());
+        assertEquals(30L, parentDirectories.trueSnapshotsSize());
+        assertEquals(40L, indexDirectories.trueSnapshotsSize());
 
         // check snapshot details
         Map<String, Pair<Long, Long>> parentSnapshotDetail = parentDirectories.getSnapshotDetails();
@@ -277,11 +290,17 @@ public class DirectoriesTest
                 FileUtils.handleFSError(new FSWriteError(new IOException("Unable to create directory " + dir), dir));
             }
 
+            boolean checked_unwritable = false;
             for (DataDirectory dd : Directories.dataDirectories)
             {
                 File file = new File(dd.location, new File(KS, "bad").getPath());
-                assertTrue(BlacklistedDirectories.isUnwritable(file));
+                if(!file.toString().contains("cassandraarchive"))
+                {
+                    assertTrue(BlacklistedDirectories.isUnwritable(file));
+                    checked_unwritable = true;
+                }
             }
+            assertEquals(checked_unwritable, true);
         } 
         finally 
         {
