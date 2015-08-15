@@ -1771,6 +1771,23 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     }
 
     /**
+     * Determine if the sstable resides in archive tier storage
+     */
+    public boolean isArchivedDiskDirectory()
+    {
+        if (DatabaseDescriptor.getArchiveDataFileLocations() == null)
+            return false;
+
+        String ssDirName  = descriptor.directory.getParentFile().getAbsolutePath().toString();
+
+        for(String dir : DatabaseDescriptor.getArchiveDataFileLocations())
+            if (ssDirName.startsWith(FileUtils.getCanonicalPath(dir).toString()))
+                return true;
+
+        return false;
+    }
+
+    /**
      * TODO: Move someplace reusable
      */
     public abstract static class Operator

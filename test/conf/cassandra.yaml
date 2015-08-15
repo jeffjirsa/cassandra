@@ -18,6 +18,8 @@ column_index_size_in_kb: 4
 saved_caches_directory: build/test/cassandra/saved_caches
 data_file_directories:
     - build/test/cassandra/data
+archive_data_file_directories:
+    - build/test/cassandra/slowdata
 disk_access_mode: mmap
 seed_provider:
     - class_name: org.apache.cassandra.locator.SimpleSeedProvider
