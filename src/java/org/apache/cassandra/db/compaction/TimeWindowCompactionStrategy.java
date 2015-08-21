@@ -51,6 +51,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
     private final TimeWindowCompactionStrategyOptions options;
     protected volatile int estimatedRemainingTasks;
     private final Set<SSTableReader> sstables = new HashSet<>();
+    private long lastExpiredCheck;
 
     public TimeWindowCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -98,8 +99,15 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
         Set<SSTableReader> uncompacting = Sets.intersection(sstables, cfs.getUncompactingSSTables());
 
-        // Find fully expired SSTables. Those will be included no matter what.
-        Set<SSTableReader> expired = CompactionController.getFullyExpiredSSTables(cfs, uncompacting, cfs.getOverlappingSSTables(uncompacting), gcBefore);
+        Set<SSTableReader> expired = Collections.emptySet();
+
+        if (System.currentTimeMillis() - lastExpiredCheck > options.expiredSSTableCheckFrequency)
+        {
+            // Find fully expired SSTables. Those will be included no matter what.
+            expired = CompactionController.getFullyExpiredSSTables(cfs, uncompacting, cfs.getOverlappingSSTables(uncompacting), gcBefore);
+            lastExpiredCheck = System.currentTimeMillis();
+        }
+
         Set<SSTableReader> candidates = Sets.newHashSet(filterSuspectSSTables(uncompacting));
 
         List<SSTableReader> compactionCandidates = new ArrayList<SSTableReader>(getNextNonExpiredSSTables(Sets.difference(candidates, expired), gcBefore));
