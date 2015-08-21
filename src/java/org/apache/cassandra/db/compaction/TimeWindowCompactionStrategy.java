@@ -31,20 +31,20 @@ import java.util.Map;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.schema.CompactionParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cql3.statements.CFPropDefs;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Pair;
+
+import static com.google.common.collect.Iterables.filter;
+
 
 public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 {
@@ -72,9 +72,6 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
     @Override
     public synchronized AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
-        if (!isEnabled())
-            return null;
-
         while (true)
         {
             List<SSTableReader> latestBucket = getNextBackgroundSSTables(gcBefore);
@@ -84,7 +81,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
             LifecycleTransaction modifier = cfs.getTracker().tryModify(latestBucket, OperationType.COMPACTION);
             if (modifier != null)
-                return new CompactionTask(cfs, modifier, gcBefore, false);
+                return new CompactionTask(cfs, modifier, gcBefore);
         }
     }
 
@@ -95,13 +92,13 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
      */
     private List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
     {
-        if (!isEnabled() || cfs.getSSTables().isEmpty())
+        if (Iterables.isEmpty(cfs.getSSTables(SSTableSet.LIVE)))
             return Collections.emptyList();
 
-        Set<SSTableReader> uncompacting = Sets.intersection(sstables, cfs.getUncompactingSSTables());
+        Set<SSTableReader> uncompacting = ImmutableSet.copyOf(filter(cfs.getUncompactingSSTables(), sstables::contains));
 
         // Find fully expired SSTables. Those will be included no matter what.
-        Set<SSTableReader> expired = CompactionController.getFullyExpiredSSTables(cfs, uncompacting, cfs.getOverlappingSSTables(uncompacting), gcBefore);
+        Set<SSTableReader> expired = CompactionController.getFullyExpiredSSTables(cfs, uncompacting, cfs.getOverlappingSSTables(SSTableSet.CANONICAL, uncompacting), gcBefore);
         Set<SSTableReader> candidates = Sets.newHashSet(filterSuspectSSTables(uncompacting));
 
         List<SSTableReader> compactionCandidates = new ArrayList<>(getNextNonExpiredSSTables(Sets.difference(candidates, expired), gcBefore));
@@ -326,7 +323,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         if (modifier == null)
             return null;
 
-        return Arrays.<AbstractCompactionTask>asList(new CompactionTask(cfs, modifier, gcBefore, false));
+        return Arrays.<AbstractCompactionTask>asList(new CompactionTask(cfs, modifier, gcBefore));
     }
 
     @Override
@@ -341,7 +338,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
             return null;
         }
 
-        return new CompactionTask(cfs, modifier, gcBefore, false).setUserDefined(true);
+        return new CompactionTask(cfs, modifier, gcBefore).setUserDefined(true);
     }
 
     public int getEstimatedRemainingTasks()
@@ -360,8 +357,8 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         Map<String, String> uncheckedOptions = AbstractCompactionStrategy.validateOptions(options);
         uncheckedOptions = TimeWindowCompactionStrategyOptions.validateOptions(options, uncheckedOptions);
 
-        uncheckedOptions.remove(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD);
-        uncheckedOptions.remove(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD);
+        uncheckedOptions.remove(CompactionParams.Option.MIN_THRESHOLD.toString());
+        uncheckedOptions.remove(CompactionParams.Option.MAX_THRESHOLD.toString());
 
         return uncheckedOptions;
     }

@@ -171,7 +171,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         cfs.forceBlockingFlush();
 
         HashMultimap<Long, SSTableReader> buckets = HashMultimap.create();
-        List<SSTableReader> sstrs = new ArrayList<>(cfs.getSSTables());
+        List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
 
         // We'll put 3 sstables into the newest bucket
         for (int i = 0 ; i < 3; i++)
@@ -211,7 +211,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         }
 
         // Reset the buckets, overfill it now
-        sstrs = new ArrayList<>(cfs.getSSTables());
+        sstrs = new ArrayList<>(cfs.getLiveSSTables());
         for (int i = 0 ; i < 40; i++)
         {
             Pair<Long,Long> bounds = getWindowBoundsInMillis(TimeUnit.HOURS, 1, sstrs.get(i).getMaxTimestamp());
@@ -240,7 +240,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             .add("val", value).build().applyUnsafe();
 
         cfs.forceBlockingFlush();
-        SSTableReader expiredSSTable = cfs.getSSTables().iterator().next();
+        SSTableReader expiredSSTable = cfs.getLiveSSTables().iterator().next();
         Thread.sleep(10);
 
         key = Util.dk(String.valueOf("nonexpired"));
@@ -249,7 +249,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             .add("val", value).build().applyUnsafe();
 
         cfs.forceBlockingFlush();
-        assertEquals(cfs.getSSTables().size(), 2);
+        assertEquals(cfs.getLiveSSTables().size(), 2);
 
         Map<String, String> options = new HashMap<>();
 
@@ -257,7 +257,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         options.put(TimeWindowCompactionStrategyOptions.COMPACTION_WINDOW_UNIT_KEY, "SECONDS");
         options.put(TimeWindowCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "MILLISECONDS");
         TimeWindowCompactionStrategy twcs = new TimeWindowCompactionStrategy(cfs, options);
-        for (SSTableReader sstable : cfs.getSSTables())
+        for (SSTableReader sstable : cfs.getLiveSSTables())
             twcs.addSSTable(sstable);
         twcs.startup();
         assertNull(twcs.getNextBackgroundTask((int) (System.currentTimeMillis() / 1000)));
