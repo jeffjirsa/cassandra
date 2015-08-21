@@ -251,6 +251,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         options.put(TimeWindowCompactionStrategyOptions.COMPACTION_WINDOW_SIZE_KEY, "30");
         options.put(TimeWindowCompactionStrategyOptions.COMPACTION_WINDOW_UNIT_KEY, "SECONDS");
         options.put(TimeWindowCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "MILLISECONDS");
+        options.put(TimeWindowCompactionStrategyOptions.EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_KEY, "0");
         TimeWindowCompactionStrategy twcs = new TimeWindowCompactionStrategy(cfs, options);
         for (SSTableReader sstable : cfs.getSSTables())
             twcs.addSSTable(sstable);

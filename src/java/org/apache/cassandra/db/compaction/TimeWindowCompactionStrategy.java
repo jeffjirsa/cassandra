@@ -31,11 +31,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,6 +42,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Pair;
 
+import static com.google.common.collect.Iterables.filter;
+
 public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(TimeWindowCompactionStrategy.class);
@@ -53,6 +51,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
     private final TimeWindowCompactionStrategyOptions options;
     protected volatile int estimatedRemainingTasks;
     private final Set<SSTableReader> sstables = new HashSet<>();
+    private long lastExpiredCheck;
 
     public TimeWindowCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -100,8 +99,19 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
         Set<SSTableReader> uncompacting = Sets.intersection(sstables, cfs.getUncompactingSSTables());
 
-        // Find fully expired SSTables. Those will be included no matter what.
-        Set<SSTableReader> expired = CompactionController.getFullyExpiredSSTables(cfs, uncompacting, cfs.getOverlappingSSTables(uncompacting), gcBefore);
+        Set<SSTableReader> expired = Collections.emptySet();
+
+        if (System.currentTimeMillis() - lastExpiredCheck > options.expiredSSTableCheckFrequency)
+        {
+            logger.debug("TWCS expired check sufficiently far in the past, checking for fully expired SSTables");
+            expired = CompactionController.getFullyExpiredSSTables(cfs, uncompacting, cfs.getOverlappingSSTables(uncompacting), gcBefore);
+            lastExpiredCheck = System.currentTimeMillis();
+        }
+        else
+        {
+            logger.debug("TWCS skipping check for fully expired SSTables");
+        }
+
         Set<SSTableReader> candidates = Sets.newHashSet(filterSuspectSSTables(uncompacting));
 
         List<SSTableReader> compactionCandidates = new ArrayList<>(getNextNonExpiredSSTables(Sets.difference(candidates, expired), gcBefore));
