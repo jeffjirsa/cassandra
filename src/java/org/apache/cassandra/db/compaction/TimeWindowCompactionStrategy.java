@@ -53,6 +53,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
     protected volatile int estimatedRemainingTasks;
     private final Set<SSTableReader> sstables = new HashSet<>();
     private long lastExpiredCheck;
+    private long highestWindowSeen;
 
     public TimeWindowCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -148,14 +149,19 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
     private List<SSTableReader> getCompactionCandidates(Iterable<SSTableReader> candidateSSTables)
     {
-        HashMultimap<Long, SSTableReader> buckets = getBuckets(candidateSSTables, options.sstableWindowUnit, options.sstableWindowSize, options.timestampResolution);
-        updateEstimatedCompactionsByTasks(buckets);
-        List<SSTableReader> mostInteresting = newestBucket(buckets,
+        Pair<HashMultimap<Long, SSTableReader>, Long> buckets = getBuckets(candidateSSTables, options.sstableWindowUnit, options.sstableWindowSize, options.timestampResolution);
+        // Update the highest window seen, if necessary
+        if(buckets.right > this.highestWindowSeen)
+            this.highestWindowSeen = buckets.right;
+
+        updateEstimatedCompactionsByTasks(buckets.left);
+        List<SSTableReader> mostInteresting = newestBucket(buckets.left,
                                                            cfs.getMinimumCompactionThreshold(),
                                                            cfs.getMaximumCompactionThreshold(),
                                                            options.sstableWindowUnit,
                                                            options.sstableWindowSize,
-                                                           options.stcsOptions);
+                                                           options.stcsOptions,
+                                                           this.highestWindowSeen);
         if (!mostInteresting.isEmpty())
             return mostInteresting;
         return null;
@@ -211,14 +217,14 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
      * @param sstableWindowUnit
      * @param sstableWindowSize
      * @param timestampResolution
-     * @return a list of buckets of files. The list is ordered such that the files with newest timestamps come first.
-     *         Each bucket is also a list of files ordered from newest to oldest.
+     * @return A pair, where the left element is the bucket representation (map of timestamp to sstablereader), and the right is the highest timestamp seen
      */
     @VisibleForTesting
-    static HashMultimap getBuckets(Iterable<SSTableReader> files, TimeUnit sstableWindowUnit, int sstableWindowSize, TimeUnit timestampResolution)
+    static Pair<HashMultimap<Long, SSTableReader>, Long> getBuckets(Iterable<SSTableReader> files, TimeUnit sstableWindowUnit, int sstableWindowSize, TimeUnit timestampResolution)
     {
         HashMultimap<Long, SSTableReader> buckets = HashMultimap.create();
 
+        long maxTimestamp = 0;
         // Create hash map to represent buckets
         // For each sstable, add sstable to the time bucket
         // Where the bucket is the file's max timestamp rounded to the nearest window bucket
@@ -236,19 +242,18 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
             Pair<Long,Long> bounds = getWindowBoundsInMillis(sstableWindowUnit, sstableWindowSize, tStamp);
             buckets.put(bounds.left, f );
+            if (bounds.left > maxTimestamp)
+                maxTimestamp = bounds.left;
         }
 
-        logger.debug("buckets {}", buckets);
-        return buckets;
+        logger.debug("buckets {}, max timestamp", buckets, maxTimestamp);
+        return Pair.< HashMultimap<Long, SSTableReader>, Long >create(buckets, maxTimestamp);
     }
 
     private void updateEstimatedCompactionsByTasks(HashMultimap<Long, SSTableReader> tasks)
     {
         int n = 0;
-        long now = System.currentTimeMillis();
-
-        Pair<Long,Long> nowBounds = getWindowBoundsInMillis(options.sstableWindowUnit, options.sstableWindowSize, now);
-        now = nowBounds.left;
+        long now = this.highestWindowSeen;
 
         for(Long key : tasks.keySet())
         {
@@ -269,16 +274,11 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
      * @return a bucket (list) of sstables to compact.
      */
     @VisibleForTesting
-    static List<SSTableReader> newestBucket(HashMultimap<Long, SSTableReader> buckets, int minThreshold, int maxThreshold, TimeUnit sstableWindowUnit, int sstableWindowSize, SizeTieredCompactionStrategyOptions stcsOptions)
+    static List<SSTableReader> newestBucket(HashMultimap<Long, SSTableReader> buckets, int minThreshold, int maxThreshold, TimeUnit sstableWindowUnit, int sstableWindowSize, SizeTieredCompactionStrategyOptions stcsOptions, long now)
     {
         // If the current bucket has at least minThreshold SSTables, choose that one.
         // For any other bucket, at least 2 SSTables is enough.
         // In any case, limit to maxThreshold SSTables.
-
-        long now = System.currentTimeMillis();
-
-        Pair<Long,Long> nowBounds = getWindowBoundsInMillis(sstableWindowUnit, sstableWindowSize, now);
-        now = nowBounds.left;
 
         TreeSet<Long> allKeys = new TreeSet<>(buckets.keySet());
 
@@ -287,6 +287,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         {
             Long key = it.next();
             Set<SSTableReader> bucket = buckets.get(key);
+            logger.debug("Key {}, now {}", key, now); 
             if (bucket.size() >= minThreshold && key >= now)
             {
                 // If we're in the newest bucket, we'll use STCS to prioritize sstables
