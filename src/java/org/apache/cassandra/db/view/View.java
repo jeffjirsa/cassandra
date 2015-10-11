@@ -192,6 +192,10 @@ public class View
     public boolean updateAffectsView(AbstractBTreePartition partition)
     {
         ReadQuery selectQuery = getReadQuery();
+
+        if (!partition.metadata().cfId.equals(definition.baseTableId))
+            return false;
+
         if (!selectQuery.selectsKey(partition.partitionKey()))
             return false;
 
