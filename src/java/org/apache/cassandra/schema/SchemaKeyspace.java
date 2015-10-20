@@ -41,6 +41,7 @@ import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -76,6 +77,7 @@ public final class SchemaKeyspace
     public static final String FUNCTIONS = "functions";
     public static final String AGGREGATES = "aggregates";
     public static final String INDEXES = "indexes";
+    public static final String RESOLVERS = "column_resolvers";
 
 
     public static final List<String> ALL =
@@ -127,6 +129,7 @@ public final class SchemaKeyspace
                 + "kind text,"
                 + "position int,"
                 + "type text,"
+                + "column_resolver text,"
                 + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
 
     private static final CFMetaData DroppedColumns =
@@ -197,6 +200,7 @@ public final class SchemaKeyspace
                 + "type_name text,"
                 + "field_names frozen<list<text>>,"
                 + "field_types frozen<list<text>>,"
+                + "filed_resolvers frozen<list<text>>,"
                 + "PRIMARY KEY ((keyspace_name), type_name))");
 
     private static final CFMetaData Functions =
@@ -218,16 +222,16 @@ public final class SchemaKeyspace
         compile(AGGREGATES,
                 "user defined aggregate definitions",
                 "CREATE TABLE %s ("
-                + "keyspace_name text,"
-                + "aggregate_name text,"
-                + "signature frozen<list<text>>,"
-                + "argument_types frozen<list<text>>,"
-                + "final_func text,"
-                + "initcond blob,"
-                + "return_type text,"
-                + "state_func text,"
-                + "state_type text,"
-                + "PRIMARY KEY ((keyspace_name), aggregate_name, signature))");
+                        + "keyspace_name text,"
+                        + "aggregate_name text,"
+                        + "signature frozen<list<text>>,"
+                        + "argument_types frozen<list<text>>,"
+                        + "final_func text,"
+                        + "initcond blob,"
+                        + "return_type text,"
+                        + "state_func text,"
+                        + "state_type text,"
+                        + "PRIMARY KEY ((keyspace_name), aggregate_name, signature))");
 
     public static final List<CFMetaData> ALL_TABLE_METADATA =
         ImmutableList.of(Keyspaces, Tables, Columns, Triggers, DroppedColumns, Views, Types, Functions, Aggregates, Indexes);
@@ -816,7 +820,9 @@ public final class SchemaKeyspace
         RowUpdateBuilder adder = new RowUpdateBuilder(Types, timestamp, mutation)
                                  .clustering(type.getNameAsString())
                                  .frozenList("field_names", type.fieldNames().stream().map(SchemaKeyspace::bbToString).collect(Collectors.toList()))
-                                 .frozenList("field_types", type.fieldTypes().stream().map(AbstractType::toString).collect(Collectors.toList()));
+                                 .frozenList("field_types", type.fieldTypes().stream().map(AbstractType::toString).collect(Collectors.toList()))
+                                 // .frozenList("field_resolvers", type.fieldResolvers().stream().map(SchemaKeyspace::bbToString).collect(Collectors.toList()))
+                                ;
 
         adder.build();
     }
@@ -1184,6 +1190,7 @@ public final class SchemaKeyspace
              .add("position", column.isOnAllComponents() ? ColumnDefinition.NO_POSITION : column.position())
              .add("clustering_order", column.clusteringOrder().toString().toLowerCase())
              .add("type", type.toString())
+             .add("column_resolver", column.getResolver() != null ? column.getResolver().getName() : null)
              .build();
     }
 
@@ -1216,7 +1223,8 @@ public final class SchemaKeyspace
         if (order == ClusteringOrder.DESC)
             type = ReversedType.getInstance(type);
 
-        return new ColumnDefinition(keyspace, table, name, type, position, kind);
+        CellResolver resolver = CellResolver.getResolver(row.getString("column_resolver"));
+        return new ColumnDefinition(keyspace, table, name, type, position, kind, resolver);
     }
 
     /*

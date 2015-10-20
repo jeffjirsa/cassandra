@@ -26,6 +26,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.apache.cassandra.index.internal.composites.*;
 import org.apache.cassandra.index.internal.keys.KeysIndex;
 import org.apache.cassandra.schema.IndexMetadata;

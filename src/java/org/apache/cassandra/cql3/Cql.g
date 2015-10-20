@@ -44,6 +44,7 @@ options {
     import org.apache.cassandra.cql3.selection.*;
     import org.apache.cassandra.cql3.functions.*;
     import org.apache.cassandra.db.marshal.CollectionType;
+    import org.apache.cassandra.db.resolvers.*;
     import org.apache.cassandra.exceptions.ConfigurationException;
     import org.apache.cassandra.exceptions.InvalidRequestException;
     import org.apache.cassandra.exceptions.SyntaxException;
@@ -663,7 +664,7 @@ createKeyspaceStatement returns [CreateKeyspaceStatement expr]
  * CREATE COLUMNFAMILY [IF NOT EXISTS] <CF> (
  *     <name1> <type>,
  *     <name2> <type>,
- *     <name3> <type>
+ *     <name3> <type> WITH RESOLVER '<value>'
  * ) WITH <property> = <value> AND ...;
  */
 createTableStatement returns [CreateTableStatement.RawStatement expr]
@@ -679,7 +680,7 @@ cfamDefinition[CreateTableStatement.RawStatement expr]
     ;
 
 cfamColumns[CreateTableStatement.RawStatement expr]
-    : k=ident v=comparatorType { boolean isStatic=false; } (K_STATIC {isStatic = true;})? { $expr.addDefinition(k, v, isStatic); }
+    : k=ident v=comparatorType { boolean isStatic=false; } (K_STATIC {isStatic = true;})? (K_WITH K_RESOLVER cls=STRING_LITERAL)? { $expr.addDefinition(k, v, isStatic, $cls.text); }
         (K_PRIMARY K_KEY { $expr.addKeyAliases(Collections.singletonList(k)); })?
     | K_PRIMARY K_KEY '(' pkDef[expr] (',' c=ident { $expr.addColumnAlias(c); } )* ')'
     ;
@@ -705,6 +706,7 @@ cfamOrdering[CFProperties props]
  * CREATE TYPE foo (
  *    <name1> <type1>,
  *    <name2> <type2>,
+ *    <name3> <type3> WITH RESOLVER <resolver3>
  *    ....
  * )
  */
@@ -716,7 +718,7 @@ createTypeStatement returns [CreateTypeStatement expr]
     ;
 
 typeColumns[CreateTypeStatement expr]
-    : k=noncol_ident v=comparatorType { $expr.addDefinition(k, v); }
+    : k=noncol_ident v=comparatorType (K_WITH K_RESOLVER cls=STRING_LITERAL)? { $expr.addDefinition(k, v, $cls.text); }
     ;
 
 
@@ -817,19 +819,23 @@ alterTableStatement returns [AlterTableStatement expr]
         AlterTableStatement.Type type = null;
         TableAttributes attrs = new TableAttributes();
         Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames = new HashMap<ColumnIdentifier.Raw, ColumnIdentifier.Raw>();
+        Map<ColumnIdentifier.Raw, String> resolverMap = new HashMap<ColumnIdentifier.Raw, String>();
         boolean isStatic = false;
     }
     : K_ALTER K_COLUMNFAMILY cf=columnFamilyName
-          ( K_ALTER id=cident K_TYPE v=comparatorType { type = AlterTableStatement.Type.ALTER; }
-          | K_ADD   id=cident v=comparatorType ({ isStatic=true; } K_STATIC)? { type = AlterTableStatement.Type.ADD; }
+          ( K_ALTER id=cident K_TYPE v=comparatorType  (K_WITH K_RESOLVER cls=STRING_LITERAL)? { type = AlterTableStatement.Type.ALTER; }
+          | K_ADD   id=cident v=comparatorType ({ isStatic=true; } K_STATIC)?  (K_WITH K_RESOLVER cls=STRING_LITERAL)? { type = AlterTableStatement.Type.ADD; }
           | K_DROP  id=cident                         { type = AlterTableStatement.Type.DROP; }
           | K_WITH  properties[attrs]                 { type = AlterTableStatement.Type.OPTS; }
+          | K_ALTER id=cident K_WITH K_RESOLVER cls=STRING_LITERAL      { type = AlterTableStatement.Type.RESOLVER; }
+               id1=cident { resolverMap.put(id1, $cls.text); }
+
           | K_RENAME                                  { type = AlterTableStatement.Type.RENAME; }
                id1=cident K_TO toId1=cident { renames.put(id1, toId1); }
                ( K_AND idn=cident K_TO toIdn=cident { renames.put(idn, toIdn); } )*
           )
     {
-        $expr = new AlterTableStatement(cf, type, id, v, attrs, renames, isStatic);
+        $expr = new AlterTableStatement(cf, type, id, v, attrs, renames, resolverMap, isStatic);
     }
     ;
 
@@ -852,8 +858,8 @@ alterMaterializedViewStatement returns [AlterViewStatement expr]
  */
 alterTypeStatement returns [AlterTypeStatement expr]
     : K_ALTER K_TYPE name=userTypeName
-          ( K_ALTER f=noncol_ident K_TYPE v=comparatorType { $expr = AlterTypeStatement.alter(name, f, v); }
-          | K_ADD   f=noncol_ident v=comparatorType        { $expr = AlterTypeStatement.addition(name, f, v); }
+          ( K_ALTER f=noncol_ident K_TYPE v=comparatorType (K_WITH K_RESOLVER cls=STRING_LITERAL)? { $expr = AlterTypeStatement.alter(name, f, v, $cls.text); }
+          | K_ADD   f=noncol_ident v=comparatorType        (K_WITH K_RESOLVER cls=STRING_LITERAL)? { $expr = AlterTypeStatement.addition(name, f, v, $cls.text); }
           | K_RENAME
                { Map<ColumnIdentifier, ColumnIdentifier> renames = new HashMap<ColumnIdentifier, ColumnIdentifier>(); }
                  id1=noncol_ident K_TO toId1=noncol_ident { renames.put(id1, toId1); }
@@ -1765,6 +1771,8 @@ K_OR:          O R;
 K_REPLACE:     R E P L A C E;
 
 K_JSON:        J S O N;
+
+K_RESOLVER:    R E S O L V E R;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

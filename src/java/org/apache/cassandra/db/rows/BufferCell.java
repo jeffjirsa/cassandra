@@ -25,6 +25,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -195,6 +196,11 @@ public class BufferCell extends AbstractCell
     public long unsharedHeapSizeExcludingData()
     {
         return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingData(value) + (path == null ? 0 : path.unsharedHeapSizeExcludingData());
+    }
+
+    public CellResolver getResolver()
+    {
+        return (CellResolver) column.getResolver();
     }
 
     /**

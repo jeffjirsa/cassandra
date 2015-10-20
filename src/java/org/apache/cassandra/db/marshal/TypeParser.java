@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -330,7 +331,7 @@ public class TypeParser
         }
     }
 
-    public Pair<Pair<String, ByteBuffer>, List<Pair<ByteBuffer, AbstractType>>> getUserTypeParameters() throws SyntaxException, ConfigurationException
+    public Pair<Pair<String, ByteBuffer>, List<Pair<ByteBuffer, Pair<AbstractType,CellResolver>>>> getUserTypeParameters() throws SyntaxException, ConfigurationException
     {
 
         if (isEOS() || str.charAt(idx) != '(')
@@ -342,7 +343,7 @@ public class TypeParser
         String keyspace = readNextIdentifier();
         skipBlankAndComma();
         ByteBuffer typeName = fromHex(readNextIdentifier());
-        List<Pair<ByteBuffer, AbstractType>> defs = new ArrayList<>();
+        List<Pair<ByteBuffer, Pair<AbstractType,CellResolver>>> defs = new ArrayList<>();
 
         while (skipBlankAndComma())
         {
@@ -361,7 +362,7 @@ public class TypeParser
             try
             {
                 AbstractType type = parse();
-                defs.add(Pair.create(name, type));
+                defs.add(Pair.create(name, Pair.<AbstractType, CellResolver>create(type, CellResolver.getResolver())));
             }
             catch (SyntaxException e)
             {

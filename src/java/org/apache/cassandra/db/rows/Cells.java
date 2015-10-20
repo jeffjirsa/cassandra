@@ -22,7 +22,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.Conflicts;
+import org.apache.cassandra.db.ConflictResolver;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
 
@@ -128,7 +128,7 @@ public abstract class Cells
 
         if (c1.isCounterCell() || c2.isCounterCell())
         {
-            Conflicts.Resolution res = Conflicts.resolveCounter(c1.timestamp(),
+            ConflictResolver.Resolution res = c1.getResolver().resolveCounter(c1.timestamp(),
                                                                 c1.isLive(nowInSec),
                                                                 c1.value(),
                                                                 c2.timestamp(),
@@ -140,7 +140,7 @@ public abstract class Cells
                 case LEFT_WINS: return c1;
                 case RIGHT_WINS: return c2;
                 default:
-                    ByteBuffer merged = Conflicts.mergeCounterValues(c1.value(), c2.value());
+                    ByteBuffer merged = c1.getResolver().mergeCounterValues(c1.value(), c2.value());
                     long timestamp = Math.max(c1.timestamp(), c2.timestamp());
 
                     // We save allocating a new cell object if it turns out that one cell was
@@ -154,7 +154,7 @@ public abstract class Cells
             }
         }
 
-        Conflicts.Resolution res = Conflicts.resolveRegular(c1.timestamp(),
+        ConflictResolver.Resolution res = c1.getResolver().resolveRegular(c1.timestamp(),
                                                             c1.isLive(nowInSec),
                                                             c1.localDeletionTime(),
                                                             c1.value(),
@@ -162,8 +162,8 @@ public abstract class Cells
                                                             c2.isLive(nowInSec),
                                                             c2.localDeletionTime(),
                                                             c2.value());
-        assert res != Conflicts.Resolution.MERGE;
-        return res == Conflicts.Resolution.LEFT_WINS ? c1 : c2;
+        assert res != ConflictResolver.Resolution.MERGE;
+        return res == ConflictResolver.Resolution.LEFT_WINS ? c1 : c2;
     }
 
     /**

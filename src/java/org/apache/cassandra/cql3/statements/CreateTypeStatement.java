@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -37,6 +38,7 @@ public class CreateTypeStatement extends SchemaAlteringStatement
     private final UTName name;
     private final List<ColumnIdentifier> columnNames = new ArrayList<>();
     private final List<CQL3Type.Raw> columnTypes = new ArrayList<>();
+    private final List<CellResolver> columnResolvers = new ArrayList<>();
     private final boolean ifNotExists;
 
     public CreateTypeStatement(UTName name, boolean ifNotExists)
@@ -55,8 +57,15 @@ public class CreateTypeStatement extends SchemaAlteringStatement
 
     public void addDefinition(ColumnIdentifier name, CQL3Type.Raw type)
     {
+        addDefinition(name, type, null);
+    }
+
+    public void addDefinition(ColumnIdentifier name, CQL3Type.Raw type, String resolverClass)
+    {
         columnNames.add(name);
         columnTypes.add(type);
+        columnResolvers.add(CellResolver.getResolver(resolverClass));
+
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -114,7 +123,7 @@ public class CreateTypeStatement extends SchemaAlteringStatement
         for (CQL3Type.Raw type : columnTypes)
             types.add(type.prepare(keyspace()).getType());
 
-        return new UserType(name.getKeyspace(), name.getUserTypeName(), names, types);
+        return new UserType(name.getKeyspace(), name.getUserTypeName(), names, types, columnResolvers);
     }
 
     public boolean announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException

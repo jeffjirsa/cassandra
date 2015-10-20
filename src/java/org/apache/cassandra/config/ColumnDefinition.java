@@ -26,6 +26,8 @@ import com.google.common.base.Objects;
 import com.google.common.collect.Collections2;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.db.ConflictResolver;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.serializers.MarshalException;
@@ -78,6 +80,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
     private final Comparator<CellPath> cellPathComparator;
     private final Comparator<Object> asymmetricCellPathComparator;
     private final Comparator<? super Cell> cellComparator;
+    private final CellResolver resolver;
 
     /**
      * These objects are compared frequently, so we encode several of their comparison components
@@ -96,47 +99,74 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
 
     public static ColumnDefinition partitionKeyDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> type, int position)
     {
-        return new ColumnDefinition(cfm, name, type, position, Kind.PARTITION_KEY);
+        return new ColumnDefinition(cfm, name, type, position, Kind.PARTITION_KEY, CellResolver.getResolver());
     }
 
     public static ColumnDefinition partitionKeyDef(String ksName, String cfName, String name, AbstractType<?> type, int position)
     {
-        return new ColumnDefinition(ksName, cfName, ColumnIdentifier.getInterned(name, true), type, position, Kind.PARTITION_KEY);
+        return new ColumnDefinition(ksName, cfName, ColumnIdentifier.getInterned(name, true), type, position, Kind.PARTITION_KEY, CellResolver.getResolver());
     }
 
     public static ColumnDefinition clusteringDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> type, int position)
     {
-        return new ColumnDefinition(cfm, name, type, position, Kind.CLUSTERING);
+        return new ColumnDefinition(cfm, name, type, position, Kind.CLUSTERING, CellResolver.getResolver());
     }
 
     public static ColumnDefinition clusteringDef(String ksName, String cfName, String name, AbstractType<?> type, int position)
     {
-        return new ColumnDefinition(ksName, cfName, ColumnIdentifier.getInterned(name, true),  type, position, Kind.CLUSTERING);
+        return new ColumnDefinition(ksName, cfName, ColumnIdentifier.getInterned(name, true),  type, position, Kind.CLUSTERING, CellResolver.getResolver());
     }
 
     public static ColumnDefinition regularDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> type)
     {
-        return new ColumnDefinition(cfm, name, type, NO_POSITION, Kind.REGULAR);
+        return regularDef(cfm, name, type, CellResolver.getResolver());
+    }
+
+    public static ColumnDefinition regularDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> type, CellResolver resolver)
+    {
+        return new ColumnDefinition(cfm, name, type, NO_POSITION, Kind.REGULAR, resolver);
     }
 
     public static ColumnDefinition regularDef(String ksName, String cfName, String name, AbstractType<?> type)
     {
-        return new ColumnDefinition(ksName, cfName, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.REGULAR);
+        return new ColumnDefinition(ksName, cfName, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.REGULAR, CellResolver.getResolver());
+    }
+
+    public static ColumnDefinition regularDef(String ksName, String cfName, String name, AbstractType<?> type, CellResolver resolver)
+    {
+        return new ColumnDefinition(ksName, cfName, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.REGULAR, resolver);
     }
 
     public static ColumnDefinition staticDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> type)
     {
-        return new ColumnDefinition(cfm, name, type, NO_POSITION, Kind.STATIC);
+        return new ColumnDefinition(cfm, name, type, NO_POSITION, Kind.STATIC, CellResolver.getResolver());
+    }
+
+    public static ColumnDefinition staticDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> type, CellResolver resolver)
+    {
+        return new ColumnDefinition(cfm, name, type, NO_POSITION, Kind.STATIC, resolver);
     }
 
     public ColumnDefinition(CFMetaData cfm, ByteBuffer name, AbstractType<?> type, int position, Kind kind)
+    {
+        this(cfm.ksName,
+                cfm.cfName,
+                ColumnIdentifier.getInterned(name, cfm.getColumnDefinitionNameComparator(kind)),
+                type,
+                position,
+                kind,
+                CellResolver.getResolver());
+    }
+
+    public ColumnDefinition(CFMetaData cfm, ByteBuffer name, AbstractType<?> type, int position, Kind kind, CellResolver resolver)
     {
         this(cfm.ksName,
              cfm.cfName,
              ColumnIdentifier.getInterned(name, cfm.getColumnDefinitionNameComparator(kind)),
              type,
              position,
-             kind);
+             kind,
+             resolver);
     }
 
     @VisibleForTesting
@@ -145,7 +175,32 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
                             ColumnIdentifier name,
                             AbstractType<?> type,
                             int position,
-                            Kind kind)
+                            Kind kind
+                            )
+    {
+        super(ksName, cfName, name, type);
+        assert name != null && type != null && kind != null;
+        assert name.isInterned();
+        assert position == NO_POSITION || kind.isPrimaryKeyKind(); // The position really only make sense for partition and clustering columns,
+        // so make sure we don't sneak it for something else since it'd breaks equals()
+        this.kind = kind;
+        this.position = position;
+        this.cellPathComparator = makeCellPathComparator(kind, type);
+        this.cellComparator = cellPathComparator == null ? ColumnData.comparator : (a, b) -> cellPathComparator.compare(a.path(), b.path());
+        this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell)a).path(), (CellPath) b);
+        this.comparisonOrder = comparisonOrder(kind, isComplex(), position(), name);
+        this.resolver = CellResolver.getResolver();
+
+    }
+
+    @VisibleForTesting
+    public ColumnDefinition(String ksName,
+                            String cfName,
+                            ColumnIdentifier name,
+                            AbstractType<?> type,
+                            int position,
+                            Kind kind,
+                            CellResolver resolver)
     {
         super(ksName, cfName, name, type);
         assert name != null && type != null && kind != null;
@@ -158,6 +213,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         this.cellComparator = cellPathComparator == null ? ColumnData.comparator : (a, b) -> cellPathComparator.compare(a.path(), b.path());
         this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell)a).path(), (CellPath) b);
         this.comparisonOrder = comparisonOrder(kind, isComplex(), position(), name);
+        this.resolver = resolver;
     }
 
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> type)
@@ -189,17 +245,22 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
 
     public ColumnDefinition copy()
     {
-        return new ColumnDefinition(ksName, cfName, name, type, position, kind);
+        return new ColumnDefinition(ksName, cfName, name, type, position, kind, resolver);
     }
 
     public ColumnDefinition withNewName(ColumnIdentifier newName)
     {
-        return new ColumnDefinition(ksName, cfName, newName, type, position, kind);
+        return new ColumnDefinition(ksName, cfName, newName, type, position, kind, resolver);
     }
 
     public ColumnDefinition withNewType(AbstractType<?> newType)
     {
-        return new ColumnDefinition(ksName, cfName, name, newType, position, kind);
+        return new ColumnDefinition(ksName, cfName, name, newType, position, kind, resolver);
+    }
+
+    public ColumnDefinition withNewTypeAndResolver(AbstractType<?> newType, CellResolver newResolver)
+    {
+        return new ColumnDefinition(ksName, cfName, name, newType, position, kind, newResolver);
     }
 
     public boolean isOnAllComponents()
@@ -244,6 +305,11 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         return Math.max(0, position);
     }
 
+    public CellResolver getResolver()
+    {
+        return resolver;
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -260,13 +326,14 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
             && Objects.equal(name, cd.name)
             && Objects.equal(type, cd.type)
             && Objects.equal(kind, cd.kind)
+            && Objects.equal(resolver, cd.resolver)
             && Objects.equal(position, cd.position);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(ksName, cfName, name, type, kind, position);
+        return Objects.hashCode(ksName, cfName, name, type, kind, position, resolver);
     }
 
     @Override
@@ -277,6 +344,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
                       .add("type", type)
                       .add("kind", kind)
                       .add("position", position)
+                      .add("resolver", resolver)
                       .toString();
     }
 

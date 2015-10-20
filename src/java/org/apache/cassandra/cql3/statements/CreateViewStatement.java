@@ -34,6 +34,7 @@ import org.apache.cassandra.cql3.selection.RawSelector;
 import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -86,11 +87,19 @@ public class CreateViewStatement extends SchemaAlteringStatement
         // We do validation in announceMigration to reduce doubling up of work
     }
 
-    private interface AddColumn {
-        void add(ColumnIdentifier identifier, AbstractType<?> type);
+    private interface AddPartitionColumn {
+        void addPartition(ColumnIdentifier identifier, AbstractType<?> type);
     }
 
-    private void add(CFMetaData baseCfm, Iterable<ColumnIdentifier> columns, AddColumn adder)
+    private interface AddClusteringColumn {
+        void addClustering(ColumnIdentifier identifier, AbstractType<?> type);
+    }
+
+    private interface AddNormalColumn {
+        void addNormal(ColumnIdentifier identifier, AbstractType<?> type, CellResolver resolver);
+    }
+
+    private void addPartition(CFMetaData baseCfm, Iterable<ColumnIdentifier> columns, AddPartitionColumn adder)
     {
         for (ColumnIdentifier column : columns)
         {
@@ -107,7 +116,50 @@ public class CreateViewStatement extends SchemaAlteringStatement
                     type = ReversedType.getInstance(type);
                 }
             }
-            adder.add(column, type);
+            adder.addPartition(column, type);
+        }
+    }
+
+    private void addClustering(CFMetaData baseCfm, Iterable<ColumnIdentifier> columns, AddClusteringColumn adder)
+    {
+        for (ColumnIdentifier column : columns)
+        {
+            AbstractType<?> type = baseCfm.getColumnDefinition(column).type;
+            if (properties.definedOrdering.containsKey(column))
+            {
+                boolean desc = properties.definedOrdering.get(column);
+                if (!desc && type.isReversed())
+                {
+                    type = ((ReversedType)type).baseType;
+                }
+                else if (desc && !type.isReversed())
+                {
+                    type = ReversedType.getInstance(type);
+                }
+            }
+            adder.addClustering(column, type);
+        }
+    }
+
+    private void addNormal(CFMetaData baseCfm, Iterable<ColumnIdentifier> columns, AddNormalColumn adder)
+    {
+        for (ColumnIdentifier column : columns)
+        {
+            AbstractType<?> type = baseCfm.getColumnDefinition(column).type;
+            CellResolver resolver = baseCfm.getColumnDefinition(column).getResolver();
+            if (properties.definedOrdering.containsKey(column))
+            {
+                boolean desc = properties.definedOrdering.get(column);
+                if (!desc && type.isReversed())
+                {
+                    type = ((ReversedType)type).baseType;
+                }
+                else if (desc && !type.isReversed())
+                {
+                    type = ReversedType.getInstance(type);
+                }
+            }
+            adder.addNormal(column, type, resolver);
         }
     }
 
@@ -275,9 +327,9 @@ public class CreateViewStatement extends SchemaAlteringStatement
             throw new InvalidRequestException("No columns are defined for Materialized View other than primary key");
 
         CFMetaData.Builder cfmBuilder = CFMetaData.Builder.createView(keyspace(), columnFamily());
-        add(cfm, targetPartitionKeys, cfmBuilder::addPartitionKey);
-        add(cfm, targetClusteringColumns, cfmBuilder::addClusteringColumn);
-        add(cfm, includedColumns, cfmBuilder::addRegularColumn);
+        addPartition(cfm, targetPartitionKeys, cfmBuilder::addPartitionKey);
+        addClustering(cfm, targetClusteringColumns, cfmBuilder::addClusteringColumn);
+        addNormal(cfm, includedColumns, cfmBuilder::addRegularColumn);
         TableParams params = properties.properties.asNewTableParams();
         CFMetaData viewCfm = cfmBuilder.build().params(params);
         ViewDefinition definition = new ViewDefinition(keyspace(),

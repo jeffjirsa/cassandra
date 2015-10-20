@@ -1,3 +1,4 @@
+package org.apache.cassandra.db.resolvers;
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -15,19 +16,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+
+import org.apache.cassandra.db.ConflictResolver;
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 import java.nio.ByteBuffer;
+import java.util.*;
 
-import org.apache.cassandra.db.context.CounterContext;
-
-public abstract class Conflicts
+public class MaxValueResolver extends CellResolver implements ConflictResolver
 {
-    private Conflicts() {}
+    public final String className = "org.apache.cassandra.db.resolvers.MaxValueResolver";
+    public final List<AbstractType<?>> supportedTypes = new ArrayList<AbstractType<?>>() {{
+        add(DoubleType.instance);
+        add(Int32Type.instance);
+        add(IntegerType.instance);
+        add(LongType.instance);
+        add(TimestampType.instance);
+        add(AsciiType.instance);
+        add(ByteType.instance);
+        add(BytesType.instance);
+        add(DateType.instance);
+        add(FloatType.instance);
+        add(ShortType.instance);
+        add(SimpleDateType.instance);
+        add(TimeType.instance);
+        add(TimeUUIDType.instance);
+        add(UTF8Type.instance);
+    }};
 
-    public enum Resolution { LEFT_WINS, MERGE, RIGHT_WINS };
+    public String getName()
+    {
+        return className;
+    }
 
-    public static Resolution resolveRegular(long leftTimestamp,
+    public Resolution resolveRegular(long leftTimestamp,
                                             boolean leftLive,
                                             int leftLocalDeletionTime,
                                             ByteBuffer leftValue,
@@ -36,8 +59,14 @@ public abstract class Conflicts
                                             int rightLocalDeletionTime,
                                             ByteBuffer rightValue)
     {
-        if (leftTimestamp != rightTimestamp)
-            return leftTimestamp < rightTimestamp ? Resolution.RIGHT_WINS : Resolution.LEFT_WINS;
+        if (!leftLive && leftTimestamp > rightTimestamp)
+            return Resolution.LEFT_WINS;
+        else if(!rightLive && rightTimestamp > leftTimestamp)
+            return Resolution.RIGHT_WINS;
+        else if (!leftLive)
+            return Resolution.RIGHT_WINS;
+        else if(!rightLive)
+            return Resolution.LEFT_WINS;
 
         if (leftLive != rightLive)
             return leftLive ? Resolution.RIGHT_WINS : Resolution.LEFT_WINS;
@@ -52,28 +81,8 @@ public abstract class Conflicts
         return leftLocalDeletionTime < rightLocalDeletionTime ? Resolution.RIGHT_WINS : Resolution.LEFT_WINS;
     }
 
-    public static Resolution resolveCounter(long leftTimestamp,
-                                            boolean leftLive,
-                                            ByteBuffer leftValue,
-                                            long rightTimestamp,
-                                            boolean rightLive,
-                                            ByteBuffer rightValue)
+    public boolean supportsType(AbstractType<?> t)
     {
-        // No matter what the counter cell's timestamp is, a tombstone always takes precedence. See CASSANDRA-7346.
-        if (!leftLive)
-            // left is a tombstone: it has precedence over right if either right is not a tombstone, or left has a greater timestamp
-            return rightLive || leftTimestamp > rightTimestamp ? Resolution.LEFT_WINS : Resolution.RIGHT_WINS;
-
-        // If right is a tombstone, since left isn't one, it has precedence
-        if (!rightLive)
-            return Resolution.RIGHT_WINS;
-
-        return Resolution.MERGE;
+        return supportedTypes.contains(t);
     }
-
-    public static ByteBuffer mergeCounterValues(ByteBuffer left, ByteBuffer right)
-    {
-        return CounterContext.instance().merge(left, right);
-    }
-
 }

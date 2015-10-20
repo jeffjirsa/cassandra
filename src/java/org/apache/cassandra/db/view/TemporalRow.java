@@ -36,7 +36,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.CBuilder;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Conflicts;
+import org.apache.cassandra.db.ConflictResolver;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.DeletionTime;
@@ -45,6 +45,7 @@ import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.partitions.AbstractBTreePartition;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
@@ -110,7 +111,7 @@ public class TemporalRow
         public TemporalCell reconcile(TemporalCell that)
         {
             int now = FBUtilities.nowInSeconds();
-            Conflicts.Resolution resolution = Conflicts.resolveRegular(that.timestamp,
+            ConflictResolver.Resolution resolution = CellResolver.getResolver().resolveRegular(that.timestamp,
                                                                        that.isLive(now),
                                                                        that.localDeletionTime,
                                                                        that.value,
@@ -118,8 +119,8 @@ public class TemporalRow
                                                                        this.isLive(now),
                                                                        this.localDeletionTime,
                                                                        this.value);
-            assert resolution != Conflicts.Resolution.MERGE;
-            if (resolution == Conflicts.Resolution.LEFT_WINS)
+            assert resolution != ConflictResolver.Resolution.MERGE;
+            if (resolution == ConflictResolver.Resolution.LEFT_WINS)
                 return that;
             return this;
         }

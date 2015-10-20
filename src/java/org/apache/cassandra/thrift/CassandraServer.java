@@ -30,6 +30,7 @@ import java.util.zip.Inflater;
 import com.google.common.base.Joiner;
 import com.google.common.collect.*;
 import com.google.common.primitives.Longs;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1028,16 +1029,17 @@ public class CassandraServer implements Cassandra.Iface
             {
                 // current and previous are the same cell. Merge current into previous
                 // (and so previous + 1 will be "free").
-                Conflicts.Resolution res;
+                ConflictResolver.Resolution res;
                 if (metadata.isCounter())
                 {
-                    res = Conflicts.resolveCounter(pc.timestamp, pc.isLive(nowInSec), pc.value,
-                                                   cc.timestamp, cc.isLive(nowInSec), cc.value);
+                    res = CellResolver.getResolver().resolveCounter(pc.timestamp, pc.isLive(nowInSec), pc.value,
+                            cc.timestamp, cc.isLive(nowInSec), cc.value);
 
                 }
                 else
                 {
-                    res = Conflicts.resolveRegular(pc.timestamp, pc.isLive(nowInSec), pc.localDeletionTime, pc.value,
+                    // Can we determine if the column has a resolver specified?
+                    res = CellResolver.getResolver().resolveRegular(pc.timestamp, pc.isLive(nowInSec), pc.localDeletionTime, pc.value,
                                                    cc.timestamp, cc.isLive(nowInSec), cc.localDeletionTime, cc.value);
                 }
 
@@ -1051,7 +1053,7 @@ public class CassandraServer implements Cassandra.Iface
                         break;
                     case MERGE:
                         assert metadata.isCounter();
-                        ByteBuffer merged = Conflicts.mergeCounterValues(pc.value, cc.value);
+                        ByteBuffer merged = CellResolver.getResolver().mergeCounterValues(pc.value, cc.value);
                         cells.set(previous, LegacyLayout.LegacyCell.counter(pc.name, merged));
                         break;
                 }

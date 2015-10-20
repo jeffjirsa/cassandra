@@ -33,6 +33,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.resolvers.*;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.IndexMetadata;
@@ -48,7 +50,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
 {
     public enum Type
     {
-        ADD, ALTER, DROP, OPTS, RENAME
+        ADD, ALTER, DROP, OPTS, RENAME, RESOLVER
     }
 
     public final Type oType;
@@ -56,6 +58,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
     public final ColumnIdentifier.Raw rawColumnName;
     private final TableAttributes attrs;
     private final Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames;
+    public final Map<ColumnIdentifier.Raw, String> resolverMap;
     private final boolean isStatic; // Only for ALTER ADD
 
     public AlterTableStatement(CFName name,
@@ -64,6 +67,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                CQL3Type.Raw validator,
                                TableAttributes attrs,
                                Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames,
+                               Map<ColumnIdentifier.Raw, String> rawResolverMap,
                                boolean isStatic)
     {
         super(name);
@@ -72,6 +76,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
         this.validator = validator; // used only for ADD/ALTER commands
         this.attrs = attrs;
         this.renames = renames;
+        this.resolverMap = rawResolverMap;
         this.isStatic = isStatic;
     }
 
@@ -137,6 +142,9 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     throw new InvalidRequestException(String.format("Cannot re-add previously dropped counter column %s", columnName));
 
                 AbstractType<?> type = validator.getType();
+                if(!CellResolver.getResolver(resolverMap.get(columnName)).supportsType(type))
+                    throw new InvalidRequestException(String.format("Resolver %s does not support provided type %s", resolverMap.get(columnName), type));
+
                 if (type.isCollection() && type.isMultiCell())
                 {
                     if (!cfm.isCompound())
@@ -161,8 +169,8 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 }
 
                 cfm.addColumnDefinition(isStatic
-                                        ? ColumnDefinition.staticDef(cfm, columnName.bytes, type)
-                                        : ColumnDefinition.regularDef(cfm, columnName.bytes, type));
+                                        ? ColumnDefinition.staticDef(cfm, columnName.bytes, type, CellResolver.getResolver(resolverMap.get(columnName)))
+                                        : ColumnDefinition.regularDef(cfm, columnName.bytes, type, CellResolver.getResolver(resolverMap.get(columnName))));
 
                 // Adding a column to a table which has an include all view requires the column to be added to the view
                 // as well
@@ -173,7 +181,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         if (view.includeAllColumns)
                         {
                             ViewDefinition viewCopy = view.copy();
-                            viewCopy.metadata.addColumnDefinition(ColumnDefinition.regularDef(viewCopy.metadata, columnName.bytes, type));
+                            viewCopy.metadata.addColumnDefinition(ColumnDefinition.regularDef(viewCopy.metadata, columnName.bytes, type, CellResolver.getResolver(resolverMap.get(columnName))));
                             if (viewUpdates == null)
                                 viewUpdates = new ArrayList<>();
                             viewUpdates.add(viewCopy);
@@ -191,8 +199,12 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                                 ? ReversedType.getInstance(validator.getType())
                                                 : validator.getType();
                 validateAlter(cfm, def, validatorType);
+
+                if(!CellResolver.getResolver(resolverMap.get(columnName)).supportsType(validatorType))
+                    throw new InvalidRequestException(String.format("Resolver %s does not support provided type %s", resolverMap.get(columnName), validatorType));
+
                 // In any case, we update the column definition
-                cfm.addOrReplaceColumnDefinition(def.withNewType(validatorType));
+                cfm.addOrReplaceColumnDefinition(def.withNewTypeAndResolver(validatorType, CellResolver.getResolver(resolverMap.get(columnName))));
 
                 // We also have to validate the view types here. If we have a view which includes a column as part of
                 // the clustering key, we need to make sure that it is indeed compatible.
@@ -205,7 +217,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                             ? ReversedType.getInstance(validator.getType())
                                             : validator.getType();
                     validateAlter(view.metadata, viewDef, viewType);
-                    viewCopy.metadata.addOrReplaceColumnDefinition(viewDef.withNewType(viewType));
+                    viewCopy.metadata.addOrReplaceColumnDefinition(viewDef.withNewTypeAndResolver(viewType, CellResolver.getResolver(resolverMap.get(columnName))));
 
                     if (viewUpdates == null)
                         viewUpdates = new ArrayList<>();

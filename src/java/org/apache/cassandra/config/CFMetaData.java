@@ -32,6 +32,9 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.db.resolvers.CellResolver;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -1146,10 +1149,10 @@ public final class CFMetaData
 
         private UUID tableId;
 
-        private final List<Pair<ColumnIdentifier, AbstractType>> partitionKeys = new ArrayList<>();
-        private final List<Pair<ColumnIdentifier, AbstractType>> clusteringColumns = new ArrayList<>();
-        private final List<Pair<ColumnIdentifier, AbstractType>> staticColumns = new ArrayList<>();
-        private final List<Pair<ColumnIdentifier, AbstractType>> regularColumns = new ArrayList<>();
+        private final List<Pair<ColumnIdentifier, Pair<AbstractType, CellResolver>>> partitionKeys = new ArrayList<>();
+        private final List<Pair<ColumnIdentifier, Pair<AbstractType, CellResolver>>> clusteringColumns = new ArrayList<>();
+        private final List<Pair<ColumnIdentifier, Pair<AbstractType, CellResolver>>> staticColumns = new ArrayList<>();
+        private final List<Pair<ColumnIdentifier, Pair<AbstractType, CellResolver>>> regularColumns = new ArrayList<>();
 
         private Builder(String keyspace, String table, boolean isDense, boolean isCompound, boolean isSuper, boolean isCounter, boolean isView)
         {
@@ -1212,7 +1215,7 @@ public final class CFMetaData
 
         public Builder addPartitionKey(ColumnIdentifier name, AbstractType type)
         {
-            this.partitionKeys.add(Pair.create(name, type));
+            this.partitionKeys.add(Pair.create(name, Pair.<AbstractType,CellResolver>create(type, null)));
             return this;
         }
 
@@ -1223,18 +1226,29 @@ public final class CFMetaData
 
         public Builder addClusteringColumn(ColumnIdentifier name, AbstractType type)
         {
-            this.clusteringColumns.add(Pair.create(name, type));
+            this.clusteringColumns.add(Pair.create(name, Pair.<AbstractType,CellResolver>create(type, null)));
             return this;
         }
 
         public Builder addRegularColumn(String name, AbstractType type)
         {
-            return addRegularColumn(ColumnIdentifier.getInterned(name, false), type);
+            return addRegularColumn(ColumnIdentifier.getInterned(name, false), type, CellResolver.getResolver());
+        }
+
+        public Builder addRegularColumn(String name, AbstractType type, CellResolver resolver)
+        {
+            return addRegularColumn(ColumnIdentifier.getInterned(name, false), type, resolver);
         }
 
         public Builder addRegularColumn(ColumnIdentifier name, AbstractType type)
         {
-            this.regularColumns.add(Pair.create(name, type));
+            this.regularColumns.add(Pair.create(name, Pair.<AbstractType,CellResolver>create(type, CellResolver.getResolver())));
+            return this;
+        }
+
+        public Builder addRegularColumn(ColumnIdentifier name, AbstractType type, CellResolver resolver)
+        {
+            this.regularColumns.add(Pair.create(name, Pair.<AbstractType,CellResolver>create(type, resolver)));
             return this;
         }
 
@@ -1245,25 +1259,36 @@ public final class CFMetaData
 
         public Builder addStaticColumn(String name, AbstractType type)
         {
-            return addStaticColumn(ColumnIdentifier.getInterned(name, false), type);
+            return addStaticColumn(ColumnIdentifier.getInterned(name, false), type, CellResolver.getResolver());
+        }
+
+        public Builder addStaticColumn(String name, AbstractType type, CellResolver resolver)
+        {
+            return addStaticColumn(ColumnIdentifier.getInterned(name, false), type, resolver);
         }
 
         public Builder addStaticColumn(ColumnIdentifier name, AbstractType type)
         {
-            this.staticColumns.add(Pair.create(name, type));
+            this.staticColumns.add(Pair.create(name, Pair.<AbstractType,CellResolver>create(type, CellResolver.getResolver())));
+            return this;
+        }
+
+        public Builder addStaticColumn(ColumnIdentifier name, AbstractType type, CellResolver resolver)
+        {
+            this.staticColumns.add(Pair.create(name, Pair.<AbstractType,CellResolver>create(type, resolver)));
             return this;
         }
 
         public Set<String> usedColumnNames()
         {
             Set<String> usedNames = new HashSet<>();
-            for (Pair<ColumnIdentifier, AbstractType> p : partitionKeys)
+            for (Pair<ColumnIdentifier, Pair<AbstractType, CellResolver>> p : partitionKeys)
                 usedNames.add(p.left.toString());
-            for (Pair<ColumnIdentifier, AbstractType> p : clusteringColumns)
+            for (Pair<ColumnIdentifier, Pair<AbstractType, CellResolver>> p : clusteringColumns)
                 usedNames.add(p.left.toString());
-            for (Pair<ColumnIdentifier, AbstractType> p : staticColumns)
+            for (Pair<ColumnIdentifier, Pair<AbstractType, CellResolver>> p : staticColumns)
                 usedNames.add(p.left.toString());
-            for (Pair<ColumnIdentifier, AbstractType> p : regularColumns)
+            for (Pair<ColumnIdentifier, Pair<AbstractType, CellResolver>> p : regularColumns)
                 usedNames.add(p.left.toString());
             return usedNames;
         }
@@ -1279,22 +1304,22 @@ public final class CFMetaData
 
             for (int i = 0; i < partitionKeys.size(); i++)
             {
-                Pair<ColumnIdentifier, AbstractType> p = partitionKeys.get(i);
+                Pair<ColumnIdentifier, Pair<AbstractType, CellResolver>> p = partitionKeys.get(i);
                 int position = partitionKeys.size() == 1 ? ColumnDefinition.NO_POSITION : i;
-                partitions.add(new ColumnDefinition(keyspace, table, p.left, p.right, position, ColumnDefinition.Kind.PARTITION_KEY));
+                partitions.add(new ColumnDefinition(keyspace, table, p.left, p.right.left, position, ColumnDefinition.Kind.PARTITION_KEY, p.right.right));
             }
 
             for (int i = 0; i < clusteringColumns.size(); i++)
             {
-                Pair<ColumnIdentifier, AbstractType> p = clusteringColumns.get(i);
-                clusterings.add(new ColumnDefinition(keyspace, table, p.left, p.right, i, ColumnDefinition.Kind.CLUSTERING));
+                Pair<ColumnIdentifier, Pair<AbstractType, CellResolver>> p = clusteringColumns.get(i);
+                clusterings.add(new ColumnDefinition(keyspace, table, p.left, p.right.left, i, ColumnDefinition.Kind.CLUSTERING, p.right.right));
             }
 
-            for (Pair<ColumnIdentifier, AbstractType> p : regularColumns)
-                builder.add(new ColumnDefinition(keyspace, table, p.left, p.right, ColumnDefinition.NO_POSITION, ColumnDefinition.Kind.REGULAR));
+            for (Pair<ColumnIdentifier, Pair<AbstractType, CellResolver>> p : regularColumns)
+                builder.add(new ColumnDefinition(keyspace, table, p.left, p.right.left, ColumnDefinition.NO_POSITION, ColumnDefinition.Kind.REGULAR, p.right.right));
 
-            for (Pair<ColumnIdentifier, AbstractType> p : staticColumns)
-                builder.add(new ColumnDefinition(keyspace, table, p.left, p.right, ColumnDefinition.NO_POSITION, ColumnDefinition.Kind.STATIC));
+            for (Pair<ColumnIdentifier, Pair<AbstractType, CellResolver>> p : staticColumns)
+                builder.add(new ColumnDefinition(keyspace, table, p.left, p.right.left, ColumnDefinition.NO_POSITION, ColumnDefinition.Kind.STATIC, p.right.right));
 
             return new CFMetaData(keyspace,
                                   table,

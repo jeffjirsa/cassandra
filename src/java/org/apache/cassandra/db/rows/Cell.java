@@ -23,6 +23,7 @@ import java.util.Comparator;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.resolvers.CellResolver;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
@@ -132,6 +133,8 @@ public abstract class Cell extends ColumnData
     public abstract Cell withUpdatedValue(ByteBuffer newValue);
 
     public abstract Cell copy(AbstractAllocator allocator);
+
+    public abstract CellResolver getResolver();
 
     @Override
     // Overrides super type to provide a more precise return type.

@@ -26,6 +26,7 @@ import java.util.*;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.*;
@@ -44,8 +45,32 @@ public class UserType extends TupleType
     public final ByteBuffer name;
     private final List<ByteBuffer> fieldNames;
     private final List<String> stringFieldNames;
+    private final List<CellResolver> fieldResolvers;
 
     public UserType(String keyspace, ByteBuffer name, List<ByteBuffer> fieldNames, List<AbstractType<?>> fieldTypes)
+    {
+        super(fieldTypes);
+        assert fieldNames.size() == fieldTypes.size();
+        this.keyspace = keyspace;
+        this.name = name;
+        this.fieldNames = fieldNames;
+        this.stringFieldNames = new ArrayList<>(fieldNames.size());
+        this.fieldResolvers = new ArrayList<>(fieldNames.size());
+        for (ByteBuffer fieldName : fieldNames)
+        {
+            try
+            {
+                stringFieldNames.add(ByteBufferUtil.string(fieldName, StandardCharsets.UTF_8));
+                fieldResolvers.add(CellResolver.getResolver());
+            }
+            catch (CharacterCodingException ex)
+            {
+                throw new AssertionError("Got non-UTF8 field name for user-defined type: " + ByteBufferUtil.bytesToHex(fieldName), ex);
+            }
+        }
+    }
+
+    public UserType(String keyspace, ByteBuffer name, List<ByteBuffer> fieldNames, List<AbstractType<?>> fieldTypes, List<CellResolver> fieldResolvers)
     {
         super(fieldTypes);
         assert fieldNames.size() == fieldTypes.size();
@@ -64,21 +89,25 @@ public class UserType extends TupleType
                 throw new AssertionError("Got non-UTF8 field name for user-defined type: " + ByteBufferUtil.bytesToHex(fieldName), ex);
             }
         }
+        this.fieldResolvers = fieldResolvers;
     }
 
     public static UserType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
-        Pair<Pair<String, ByteBuffer>, List<Pair<ByteBuffer, AbstractType>>> params = parser.getUserTypeParameters();
+        Pair<Pair<String, ByteBuffer>, List<Pair<ByteBuffer, Pair<AbstractType,CellResolver>>>> params = parser.getUserTypeParameters();
+
         String keyspace = params.left.left;
         ByteBuffer name = params.left.right;
         List<ByteBuffer> columnNames = new ArrayList<>(params.right.size());
         List<AbstractType<?>> columnTypes = new ArrayList<>(params.right.size());
-        for (Pair<ByteBuffer, AbstractType> p : params.right)
+        List<CellResolver> columnResolvers = new ArrayList<>(params.right.size());
+        for (Pair<ByteBuffer, Pair<AbstractType,CellResolver>> p : params.right)
         {
             columnNames.add(p.left);
-            columnTypes.add(p.right.freeze());
+            columnTypes.add(p.right.left.freeze());
+            columnResolvers.add(p.right.right);
         }
-        return new UserType(keyspace, name, columnNames, columnTypes);
+        return new UserType(keyspace, name, columnNames, columnTypes, columnResolvers);
     }
 
     public AbstractType<?> fieldType(int i)
@@ -104,6 +133,16 @@ public class UserType extends TupleType
     public List<ByteBuffer> fieldNames()
     {
         return fieldNames;
+    }
+
+    public List<CellResolver> fieldResolvers()
+    {
+        return fieldResolvers;
+    }
+
+    public CellResolver fieldResolver(int i)
+    {
+        return fieldResolvers.get(i);
     }
 
     public String getNameAsString()

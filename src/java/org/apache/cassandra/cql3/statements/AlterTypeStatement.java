@@ -24,6 +24,7 @@ import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -54,13 +55,24 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
 
     public static AlterTypeStatement addition(UTName name, ColumnIdentifier fieldName, CQL3Type.Raw type)
     {
-        return new AddOrAlter(name, true, fieldName, type);
+        return new AddOrAlter(name, true, fieldName, type, null);
+    }
+
+    public static AlterTypeStatement addition(UTName name, ColumnIdentifier fieldName, CQL3Type.Raw type, String resolverClass)
+    {
+        return new AddOrAlter(name, true, fieldName, type, resolverClass);
     }
 
     public static AlterTypeStatement alter(UTName name, ColumnIdentifier fieldName, CQL3Type.Raw type)
     {
-        return new AddOrAlter(name, false, fieldName, type);
+        return new AddOrAlter(name, false, fieldName, type, null);
     }
+
+    public static AlterTypeStatement alter(UTName name, ColumnIdentifier fieldName, CQL3Type.Raw type, String resolverClass)
+    {
+        return new AddOrAlter(name, false, fieldName, type, resolverClass);
+    }
+
 
     public static AlterTypeStatement renames(UTName name, Map<ColumnIdentifier, ColumnIdentifier> renames)
     {
@@ -176,7 +188,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
 
             // Otherwise, check for nesting
             List<AbstractType<?>> updatedTypes = updateTypes(ut.fieldTypes(), keyspace, toReplace, updated);
-            return updatedTypes == null ? null : new UserType(ut.keyspace, ut.name, new ArrayList<>(ut.fieldNames()), updatedTypes);
+            return updatedTypes == null ? null : new UserType(ut.keyspace, ut.name, new ArrayList<>(ut.fieldNames()), updatedTypes, ut.fieldResolvers());
         }
         else if (type instanceof TupleType)
         {
@@ -246,13 +258,15 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
         private final boolean isAdd;
         private final ColumnIdentifier fieldName;
         private final CQL3Type.Raw type;
+        private final CellResolver resolver;
 
-        public AddOrAlter(UTName name, boolean isAdd, ColumnIdentifier fieldName, CQL3Type.Raw type)
+        public AddOrAlter(UTName name, boolean isAdd, ColumnIdentifier fieldName, CQL3Type.Raw type, String resolverClass)
         {
             super(name);
             this.isAdd = isAdd;
             this.fieldName = fieldName;
             this.type = type;
+            this.resolver = CellResolver.getResolver(resolverClass);
         }
 
         private UserType doAdd(UserType toUpdate) throws InvalidRequestException
@@ -271,8 +285,11 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             List<AbstractType<?>> newTypes = new ArrayList<>(toUpdate.size() + 1);
             newTypes.addAll(toUpdate.fieldTypes());
             newTypes.add(addType);
+            List<CellResolver> newResolvers = new ArrayList<>(toUpdate.size() + 1);
+            newResolvers.addAll(toUpdate.fieldResolvers());
+            newResolvers.add(resolver);
 
-            return new UserType(toUpdate.keyspace, toUpdate.name, newNames, newTypes);
+            return new UserType(toUpdate.keyspace, toUpdate.name, newNames, newTypes, newResolvers);
         }
 
         private UserType doAlter(UserType toUpdate) throws InvalidRequestException
@@ -287,9 +304,12 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
 
             List<ByteBuffer> newNames = new ArrayList<>(toUpdate.fieldNames());
             List<AbstractType<?>> newTypes = new ArrayList<>(toUpdate.fieldTypes());
-            newTypes.set(idx, type.prepare(keyspace()).getType());
+            List<CellResolver> newResolvers = new ArrayList<>(toUpdate.fieldResolvers());
 
-            return new UserType(toUpdate.keyspace, toUpdate.name, newNames, newTypes);
+            newTypes.set(idx, type.prepare(keyspace()).getType());
+            newResolvers.set(idx, resolver);
+
+            return new UserType(toUpdate.keyspace, toUpdate.name, newNames, newTypes, newResolvers);
         }
 
         protected UserType makeUpdatedType(UserType toUpdate) throws InvalidRequestException
@@ -312,6 +332,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
         {
             List<ByteBuffer> newNames = new ArrayList<>(toUpdate.fieldNames());
             List<AbstractType<?>> newTypes = new ArrayList<>(toUpdate.fieldTypes());
+            List<CellResolver> newResolvers = new ArrayList<>(toUpdate.fieldResolvers());
 
             for (Map.Entry<ColumnIdentifier, ColumnIdentifier> entry : renames.entrySet())
             {
@@ -323,7 +344,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
                 newNames.set(idx, to.bytes);
             }
 
-            UserType updated = new UserType(toUpdate.keyspace, toUpdate.name, newNames, newTypes);
+            UserType updated = new UserType(toUpdate.keyspace, toUpdate.name, newNames, newTypes, newResolvers);
             CreateTypeStatement.checkForDuplicateNames(updated);
             return updated;
         }

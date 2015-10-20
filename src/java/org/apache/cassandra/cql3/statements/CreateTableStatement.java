@@ -22,6 +22,7 @@ import java.util.*;
 
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.auth.*;
@@ -29,12 +30,14 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.resolvers.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
+import org.apache.cassandra.utils.Pair;
 
 /** A {@code CREATE TABLE} parsed from a CQL query statement. */
 public class CreateTableStatement extends SchemaAlteringStatement
@@ -47,12 +50,14 @@ public class CreateTableStatement extends SchemaAlteringStatement
     private final List<ColumnIdentifier> keyAliases = new ArrayList<>();
     private final List<ColumnIdentifier> columnAliases = new ArrayList<>();
 
+    private final Map<ColumnIdentifier, CellResolver> columnResolvers = new HashMap<>();
+
     private boolean isDense;
     private boolean isCompound;
     private boolean hasCounters;
 
     // use a TreeMap to preserve ordering across JDK versions (see CASSANDRA-9492)
-    private final Map<ColumnIdentifier, AbstractType> columns = new TreeMap<>((o1, o2) -> o1.bytes.compareTo(o2.bytes));
+    private final Map<ColumnIdentifier, Pair<AbstractType, CellResolver>> columns = new TreeMap<>((o1, o2) -> o1.bytes.compareTo(o2.bytes));
 
     private final Set<ColumnIdentifier> staticColumns;
     private final TableParams params;
@@ -121,14 +126,14 @@ public class CreateTableStatement extends SchemaAlteringStatement
             builder.addClusteringColumn(columnAliases.get(i), clusteringTypes.get(i));
 
         boolean isStaticCompact = !isDense && !isCompound;
-        for (Map.Entry<ColumnIdentifier, AbstractType> entry : columns.entrySet())
+        for (Map.Entry<ColumnIdentifier, Pair<AbstractType, CellResolver>> entry : columns.entrySet())
         {
             ColumnIdentifier name = entry.getKey();
             // Note that for "static" no-clustering compact storage we use static for the defined columns
             if (staticColumns.contains(name) || isStaticCompact)
-                builder.addStaticColumn(name, entry.getValue());
+                builder.addStaticColumn(name, entry.getValue().left, columnResolvers.get(name));
             else
-                builder.addRegularColumn(name, entry.getValue());
+                builder.addRegularColumn(name, entry.getValue().left, columnResolvers.get(name));
         }
 
         boolean isCompactTable = isDense || !isCompound;
@@ -139,13 +144,13 @@ public class CreateTableStatement extends SchemaAlteringStatement
             if (isStaticCompact)
             {
                 builder.addClusteringColumn(names.defaultClusteringName(), UTF8Type.instance);
-                builder.addRegularColumn(names.defaultCompactValueName(), hasCounters ? CounterColumnType.instance : BytesType.instance);
+                builder.addRegularColumn(names.defaultCompactValueName(), hasCounters ? CounterColumnType.instance : BytesType.instance, CellResolver.getResolver());
             }
             else if (isDense && !builder.hasRegulars())
             {
                 // Even for dense, we might not have our regular column if it wasn't part of the declaration. If
                 // that's the case, add it but with a specific EmptyType so we can recognize that case later
-                builder.addRegularColumn(names.defaultCompactValueName(), EmptyType.instance);
+                builder.addRegularColumn(names.defaultCompactValueName(), EmptyType.instance, CellResolver.getResolver());
             }
         }
 
@@ -171,12 +176,13 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
     public static class RawStatement extends CFStatement
     {
-        private final Map<ColumnIdentifier, CQL3Type.Raw> definitions = new HashMap<>();
+        private final Map<ColumnIdentifier, Pair<CQL3Type.Raw,CellResolver>> definitions = new HashMap<>();
         public final CFProperties properties = new CFProperties();
 
         private final List<List<ColumnIdentifier>> keyAliases = new ArrayList<>();
         private final List<ColumnIdentifier> columnAliases = new ArrayList<>();
         private final Set<ColumnIdentifier> staticColumns = new HashSet<>();
+        private final List<CellResolver> resolvers = new ArrayList<>();
 
         private final Multiset<ColumnIdentifier> definedNames = HashMultiset.create(1);
 
@@ -209,15 +215,18 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
             CreateTableStatement stmt = new CreateTableStatement(cfName, params, ifNotExists, staticColumns);
 
-            for (Map.Entry<ColumnIdentifier, CQL3Type.Raw> entry : definitions.entrySet())
+            for (Map.Entry<ColumnIdentifier, Pair<CQL3Type.Raw, CellResolver>> entry : definitions.entrySet())
             {
                 ColumnIdentifier id = entry.getKey();
-                CQL3Type pt = entry.getValue().prepare(keyspace());
+                CQL3Type pt = entry.getValue().left.prepare(keyspace());
                 if (pt.isCollection() && ((CollectionType)pt.getType()).isMultiCell())
                     stmt.collections.put(id.bytes, (CollectionType)pt.getType());
-                if (entry.getValue().isCounter())
+                if (entry.getValue().left.isCounter())
                     stmt.hasCounters = true;
-                stmt.columns.put(id, pt.getType()); // we'll remove what is not a column below
+                stmt.columns.put(id, Pair.<AbstractType, CellResolver>create(pt.getType(), entry.getValue().right)); // we'll remove what is not a column below
+                if(!(entry.getValue().right).supportsType(entry.getValue().left.prepare(keyspace()).getType()))
+                    throw new InvalidRequestException(String.format("Resolver %s does not support provided type %s", entry.getValue().right, entry.getValue().left));
+                stmt.columnResolvers.put(entry.getKey(), entry.getValue().right);
             }
 
             if (keyAliases.isEmpty())
@@ -254,12 +263,12 @@ public class CreateTableStatement extends SchemaAlteringStatement
                 stmt.clusteringTypes.add(type);
             }
 
-            // We've handled anything that is not a rpimary key so stmt.columns only contains NON-PK columns. So
+            // We've handled anything that is not a primary key so stmt.columns only contains NON-PK columns. So
             // if it's a counter table, make sure we don't have non-counter types
             if (stmt.hasCounters)
             {
-                for (AbstractType<?> type : stmt.columns.values())
-                    if (!type.isCounter())
+                for (Pair<AbstractType,CellResolver> type : stmt.columns.values())
+                    if (!type.left.isCounter())
                         throw new InvalidRequestException("Cannot mix counter and non counter columns in the same table");
             }
 
@@ -335,9 +344,10 @@ public class CreateTableStatement extends SchemaAlteringStatement
             return new ParsedStatement.Prepared(stmt);
         }
 
-        private AbstractType<?> getTypeAndRemove(Map<ColumnIdentifier, AbstractType> columns, ColumnIdentifier t) throws InvalidRequestException
+        private AbstractType<?> getTypeAndRemove(Map<ColumnIdentifier, Pair<AbstractType, CellResolver>> columns, ColumnIdentifier t) throws InvalidRequestException
         {
-            AbstractType type = columns.get(t);
+            AbstractType type = columns.get(t).left;
+            CellResolver resolver = columns.get(t).right;
             if (type == null)
                 throw new InvalidRequestException(String.format("Unknown definition %s referenced in PRIMARY KEY", t));
             if (type.isCollection() && type.isMultiCell())
@@ -350,10 +360,17 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
         public void addDefinition(ColumnIdentifier def, CQL3Type.Raw type, boolean isStatic)
         {
+            addDefinition(def, type, isStatic, null);
+        }
+
+        public void addDefinition(ColumnIdentifier def, CQL3Type.Raw type, boolean isStatic, String resolverClassName)
+        {
             definedNames.add(def);
-            definitions.put(def, type);
+            definitions.put(def, Pair.<CQL3Type.Raw, CellResolver>create(type, (CellResolver) CellResolver.getResolver(resolverClassName)));
             if (isStatic)
                 staticColumns.add(def);
+
+            resolvers.add(CellResolver.getResolver(resolverClassName));
         }
 
         public void addKeyAliases(List<ColumnIdentifier> aliases)
