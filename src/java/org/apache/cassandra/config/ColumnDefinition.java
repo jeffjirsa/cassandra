@@ -213,7 +213,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         this.cellComparator = cellPathComparator == null ? ColumnData.comparator : (a, b) -> cellPathComparator.compare(a.path(), b.path());
         this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell)a).path(), (CellPath) b);
         this.comparisonOrder = comparisonOrder(kind, isComplex(), position(), name);
-        this.resolver = resolver;
+        this.resolver = resolver == null ? CellResolver.getResolver() : resolver;
     }
 
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> type)
