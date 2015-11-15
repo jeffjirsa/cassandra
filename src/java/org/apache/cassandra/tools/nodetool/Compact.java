@@ -36,9 +36,31 @@ public class Compact extends NodeToolCmd
     @Option(title = "split_output", name = {"-s", "--split-output"}, description = "Use -s to not create a single big file")
     private boolean splitOutput = false;
 
+    @Option(title = "user-defined", name = {"--user-defined"}, description = "Use --user-defined to submit listed files for user-defined compaction")
+    private boolean userDefined = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
+        System.out.println("args: " + args);
+        System.out.println("datafiles: " + userDefined);
+
+        if(splitOutput && userDefined)
+        {
+            throw new RuntimeException("Invalid option combination: User defined compaction can not be split");
+        }
+        else if(userDefined)
+        {
+            try
+            {
+                String userDefinedFiles = parseUserDefinedFiles(args);
+                probe.forceUserDefinedCompaction(userDefinedFiles);
+            } catch (Exception e) {
+                throw new RuntimeException("Error occurred during user defined compaction", e);
+            }
+            return;
+        }
+
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
 
@@ -52,5 +74,17 @@ public class Compact extends NodeToolCmd
                 throw new RuntimeException("Error occurred during compaction", e);
             }
         }
+    }
+
+    private String parseUserDefinedFiles(List<String> args)
+    {
+        StringBuilder sb = new StringBuilder();
+        String delim = "";
+        for(String s : args)
+        {
+            sb.append(delim).append(s);
+            delim = ",";
+        }
+        return sb.toString();
     }
 }
