@@ -279,6 +279,10 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    public void forceUserDefinedCompaction(String datafiles) throws IOException, ExecutionException, InterruptedException
+    {
+        compactionProxy.forceUserDefinedCompaction(datafiles);
+    }
 
     public void forceKeyspaceCompaction(String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {

@@ -1200,9 +1200,25 @@ public class NodeTool
         @Arguments(usage = "[<keyspace> <cfnames>...]", description = "The keyspace followed by one or many column families")
         private List<String> args = new ArrayList<>();
 
+        @Option(title = "user-defined", name = {"--user-defined"}, description = "Use --user-defined to submit listed files for user-defined compaction")
+        private boolean userDefined = false;
+
         @Override
         public void execute(NodeProbe probe)
         {
+            if(userDefined)
+            {
+                try
+                {
+                    String userDefinedFiles = parseUserDefinedFiles(args);
+                    probe.forceUserDefinedCompaction(userDefinedFiles);
+                } catch (Exception e)
+                {
+                    throw new RuntimeException("Error occurred during user defined compaction", e);
+                }
+                return;
+            }
+
             List<String> keyspaces = parseOptionalKeyspace(args, probe);
             String[] cfnames = parseOptionalColumnFamilies(args);
 
@@ -1216,6 +1232,18 @@ public class NodeTool
                     throw new RuntimeException("Error occurred during compaction", e);
                 }
             }
+        }
+
+        private String parseUserDefinedFiles(List<String> args)
+        {
+            StringBuilder sb = new StringBuilder();
+            String delim = "";
+            for(String s : args)
+            {
+                sb.append(delim).append(s);
+                delim = ",";
+            }
+            return sb.toString();
         }
     }
 
