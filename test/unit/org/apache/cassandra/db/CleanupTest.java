@@ -183,6 +183,39 @@ public class CleanupTest
         assertEquals(0, rows.size());
     }
 
+    @Test
+    public void testForceUserDefinedCleanupWithNewToken() throws ExecutionException, InterruptedException, UnknownHostException
+    {
+        StorageService.instance.getTokenMetadata().clearUnsafe();
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF2);
+
+        List<Row> rows;
+
+        // insert data and verify we get it back w/ range query
+        fillCF(cfs, LOOPS);
+
+        rows = Util.getRangeSlice(cfs);
+
+        assertEquals(LOOPS, rows.size());
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+
+        byte[] tk1 = new byte[1], tk2 = new byte[1];
+        tk1[0] = 2;
+        tk2[0] = 1;
+        tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
+        tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
+
+        for(SSTableReader r: cfs.getSSTables())
+            CompactionManager.instance.forceUserDefinedCleanup(r.getFilename());
+
+        rows = Util.getRangeSlice(cfs);
+        assertEquals(0, rows.size());
+    }
+
+
+
     protected void fillCF(ColumnFamilyStore cfs, int rowsPerSSTable)
     {
         CompactionManager.instance.disableAutoCompaction();
