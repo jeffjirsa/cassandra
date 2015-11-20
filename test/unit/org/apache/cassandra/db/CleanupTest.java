@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.db;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -39,6 +40,7 @@ import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -163,6 +165,39 @@ public class CleanupTest extends SchemaLoader
         tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
         CompactionManager.instance.performCleanup(cfs);
+
+        rows = Util.getRangeSlice(cfs);
+        assertEquals(0, rows.size());
+    }
+
+    @Test
+    public void testforceUserDefinedCleanupWithNewToken() throws ExecutionException, InterruptedException, UnknownHostException
+    {
+        StorageService.instance.getTokenMetadata().clearUnsafe();
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF2);
+
+        List<Row> rows;
+
+        // insert data and verify we get it back w/ range query
+        fillCF(cfs, LOOPS);
+
+        rows = Util.getRangeSlice(cfs);
+
+        assertEquals(LOOPS, rows.size());
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+
+        byte[] tk1 = new byte[1], tk2 = new byte[1];
+        tk1[0] = 2;
+        tk2[0] = 1;
+        tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
+        tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
+        cfs.forceBlockingFlush();
+        for(SSTableReader r: cfs.getSSTables())
+        {
+            CompactionManager.instance.forceUserDefinedCleanup(new File(r.descriptor.filenameFor(Component.DATA)).getName());
+        }
 
         rows = Util.getRangeSlice(cfs);
         assertEquals(0, rows.size());
