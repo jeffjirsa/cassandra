@@ -69,12 +69,14 @@ public class DatabaseDescriptor
     private static final int MAX_NUM_TOKENS = 1536;
 
     private static IEndpointSnitch snitch;
+    private static IDatacenterTopologyProvider dcTopologyProvider;
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
     private static InetAddress broadcastAddress;
     private static InetAddress rpcAddress;
     private static InetAddress broadcastRpcAddress;
     private static SeedProvider seedProvider;
     private static IInternodeAuthenticator internodeAuthenticator;
+    private static IDatacenterTopologyProvider datacenterTopologyDefinition;
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
@@ -451,6 +453,11 @@ public class DatabaseDescriptor
             }
         };
 
+        logger.debug("Creating dc topology provider object for class "+ conf.datacenter_topology_provider);
+        dcTopologyProvider = createDatacenterTopologyProvider(conf.datacenter_topology_provider);
+        if(!dcTopologyProvider.isGossipableDatacenter(localDC))
+            throw new ConfigurationException("DatacenterTopologyProvider is set to filter local DC " + localDC + ", this is an invalid configuration");
+
         /* Request Scheduler setup */
         requestSchedulerOptions = conf.request_scheduler_options;
         if (conf.request_scheduler != null)
@@ -729,6 +736,14 @@ public class DatabaseDescriptor
         return conf.dynamic_snitch ? new DynamicEndpointSnitch(snitch) : snitch;
     }
 
+    private static IDatacenterTopologyProvider createDatacenterTopologyProvider(String datacenterTopologyProviderClassName) throws ConfigurationException
+    {
+        if (!datacenterTopologyProviderClassName.contains("."))
+            datacenterTopologyProviderClassName = "org.apache.cassandra.locator." + datacenterTopologyProviderClassName;
+        IDatacenterTopologyProvider dcProvider = FBUtilities.construct(datacenterTopologyProviderClassName, "dcTopologyProvider");
+        return conf.datacenter_topology_provider == null ? new MeshDatacenterTopologyProvider() : dcProvider;
+    }
+
     public static IAuthenticator getAuthenticator()
     {
         return authenticator;
@@ -860,9 +875,20 @@ public class DatabaseDescriptor
     {
         return snitch;
     }
+
     public static void setEndpointSnitch(IEndpointSnitch eps)
     {
         snitch = eps;
+    }
+
+    public static IDatacenterTopologyProvider getDatacenterTopologyProvider()
+    {
+        return dcTopologyProvider;
+    }
+
+    public static void setDatacenterTopologyProvider(IDatacenterTopologyProvider dctp)
+    {
+        dcTopologyProvider = dctp;
     }
 
     public static IRequestScheduler getRequestScheduler()

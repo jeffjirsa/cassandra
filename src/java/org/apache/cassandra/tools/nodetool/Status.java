@@ -64,6 +64,8 @@ public class Status extends NodeToolCmd
         unreachableNodes = probe.getUnreachableNodes();
         hostIDMap = probe.getHostIdMap();
         epSnitchInfo = probe.getEndpointSnitchInfoProxy();
+        Collection<String> gossipableDatacenters = probe.getGossipableDatacenters();
+
 
         StringBuffer errors = new StringBuffer();
 
@@ -96,7 +98,8 @@ public class Status extends NodeToolCmd
         // Datacenters
         for (Map.Entry<String, SetHostStat> dc : dcs.entrySet())
         {
-            String dcHeader = String.format("Datacenter: %s%n", dc.getKey());
+            boolean gossipable = gossipableDatacenters.contains(dc.getKey());
+            String dcHeader = String.format("Datacenter: %s %s%n", dc.getKey(), gossipable ? "" : "[Disconnected]");
             System.out.printf(dcHeader);
             for (int i = 0; i < (dcHeader.length() - 1); i++) System.out.print('=');
             System.out.println();
@@ -115,7 +118,7 @@ public class Status extends NodeToolCmd
             {
                 Float owns = ownerships.get(endpoint);
                 List<HostStat> tokens = hostToTokens.get(endpoint);
-                printNode(endpoint.getHostAddress(), owns, tokens, hasEffectiveOwns, isTokenPerNode);
+                printNode(endpoint.getHostAddress(), owns, tokens, hasEffectiveOwns, isTokenPerNode, gossipable);
             }
         }
 
@@ -146,12 +149,13 @@ public class Status extends NodeToolCmd
             System.out.printf(fmt, "-", "-", "Address", "Load", "Tokens", owns, "Host ID", "Rack");
     }
 
-    private void printNode(String endpoint, Float owns, List<HostStat> tokens, boolean hasEffectiveOwns, boolean isTokenPerNode)
+    private void printNode(String endpoint, Float owns, List<HostStat> tokens, boolean hasEffectiveOwns, boolean isTokenPerNode, boolean gossipable)
     {
         String status, state, load, strOwns, hostID, rack, fmt;
         fmt = getFormat(hasEffectiveOwns, isTokenPerNode);
         if (liveNodes.contains(endpoint)) status = "U";
         else if (unreachableNodes.contains(endpoint)) status = "D";
+        else if (!gossipable) status = "X";
         else status = "?";
         if (joiningNodes.contains(endpoint)) state = "J";
         else if (leavingNodes.contains(endpoint)) state = "L";

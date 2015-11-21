@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -116,9 +117,17 @@ public class Ring extends NodeToolCmd
         Collection<String> joiningNodes = probe.getJoiningNodes();
         Collection<String> leavingNodes = probe.getLeavingNodes();
         Collection<String> movingNodes = probe.getMovingNodes();
+        Collection<String> gossipableDatacenters = probe.getGossipableDatacenters();
         Map<String, String> loadMap = probe.getLoadMap();
+        boolean gossipable = true;
 
-        System.out.println("Datacenter: " + dc);
+        String disconnected = "";
+        if(!gossipableDatacenters.contains(dc)) {
+            gossipable = false;
+            disconnected = "[Disconnected]";
+        }
+
+        System.out.println(String.format("Datacenter: %s %s%n", dc, disconnected));
         System.out.println("==========");
 
         // get the total amount of replicas for this dc and the last token in this dc's ring
@@ -155,7 +164,9 @@ public class Ring extends NodeToolCmd
                     ? "Up"
                     : deadNodes.contains(endpoint)
                             ? "Down"
-                            : "?";
+                            : !gossipable
+                                ? "Unk"
+                                : "?";
 
             String state = "Normal";
 

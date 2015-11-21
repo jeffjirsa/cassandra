@@ -344,6 +344,15 @@ public class Keyspace
                                                                                     ksm.params.replication.options);
     }
 
+    public void resetReplicationStrategy()
+    {
+        replicationStrategy = AbstractReplicationStrategy.createReplicationStrategy(metadata.name,
+                                                                                    metadata.params.replication.klass,
+                                                                                    StorageService.instance.getTokenMetadata(),
+                                                                                    DatabaseDescriptor.getEndpointSnitch(),
+                                                                                    metadata.params.replication.options);
+    }
+
     // best invoked on the compaction mananger.
     public void dropCf(UUID cfId)
     {

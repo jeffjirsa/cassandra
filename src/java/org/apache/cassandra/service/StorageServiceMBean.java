@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
@@ -616,4 +617,17 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return true if the node successfully starts resuming. (this does not mean bootstrap streaming was success.)
      */
     public boolean resumeBootstrap();
+
+    /*
+     * To allow specification of hub/spoke or daisy-chained datacenters,
+     * the gossipable/request-serving datacenters may not match the list
+     * of all datacenters, so expose the raw list of all datacenters,
+     * the list of gossipable datacenters, and the list of request-able
+     * datacenters from the view of this node
+     */
+    public Set<String> getAllDatacenters();
+
+    public Set<String> getGossipableDatacenters();
+
+    public void reloadDatacenterTopologyProvider();
 }

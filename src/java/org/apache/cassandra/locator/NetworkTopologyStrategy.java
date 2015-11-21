@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.Map.Entry;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,7 +66,10 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
                 if (dc.equalsIgnoreCase("replication_factor"))
                     throw new ConfigurationException("replication_factor is an option for SimpleStrategy, not NetworkTopologyStrategy");
                 Integer replicas = Integer.valueOf(entry.getValue());
-                newDatacenters.put(dc, replicas);
+                if (DatabaseDescriptor.getDatacenterTopologyProvider().isGossipableDatacenter(dc))
+                    newDatacenters.put(dc, replicas);
+                else
+                    logger.debug("excluding non-gossipable datacenter {}", dc);
             }
         }
 

@@ -30,7 +30,11 @@ import javax.management.ObjectName;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Uninterruptibles;
+import com.google.common.base.Predicate;
+import static com.google.common.collect.Iterables.filter;
 
 import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
@@ -103,7 +107,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private final List<IEndpointStateChangeSubscriber> subscribers = new CopyOnWriteArrayList<IEndpointStateChangeSubscriber>();
 
     /* live member set */
-    private final Set<InetAddress> liveEndpoints = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
+    private final Map<InetAddress, String> liveEndpoints = new ConcurrentSkipListMap<InetAddress,String>(inetcomparator);
 
     /* unreachable member set */
     private final Map<InetAddress, Long> unreachableEndpoints = new ConcurrentHashMap<InetAddress, Long>();
@@ -261,10 +265,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public Set<InetAddress> getLiveMembers()
     {
-        Set<InetAddress> liveMembers = new HashSet<>(liveEndpoints);
-        if (!liveMembers.contains(FBUtilities.getBroadcastAddress()))
-            liveMembers.add(FBUtilities.getBroadcastAddress());
-        return liveMembers;
+        Map<InetAddress,String> liveMembers = new HashMap<InetAddress,String>(liveEndpoints);
+        if (!liveMembers.containsKey(FBUtilities.getBroadcastAddress()))
+            liveMembers.put(FBUtilities.getBroadcastAddress(), DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress()));
+        return liveMembers.keySet();
     }
 
     /**
@@ -648,6 +652,38 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return seeds.contains(to);
     }
 
+
+    /**
+     * Returns true if the chosen target was also a seed. False otherwise
+     *
+     * @param message
+     * @param epSet   a set of endpoint from which a random endpoint is chosen.
+     * @return true if the chosen endpoint is also a seed.
+     */
+    private boolean sendGossip(MessageOut<GossipDigestSyn> message, Map<InetAddress,String> epSet)
+    {
+        Predicate dcTopologyFilter = new Predicate<String>()
+        {
+            @Override
+            public boolean apply(String dc) {
+                return DatabaseDescriptor.getDatacenterTopologyProvider().isGossipableDatacenter(dc);
+            }
+        };
+
+        Map<InetAddress,String> liveEndpointsFiltered = Maps.filterValues(epSet, dcTopologyFilter);
+
+        int size = liveEndpointsFiltered.size();
+        if (size < 1)
+            return false;
+        /* Generate a random number from 0 -> size */
+        int index = (size == 1) ? 0 : random.nextInt(size);
+        InetAddress to = (InetAddress) liveEndpointsFiltered.keySet().toArray()[index];
+        if (logger.isTraceEnabled())
+            logger.trace("Sending a GossipDigestSyn to {} ...", to);
+        MessagingService.instance().sendOneWay(message, to);
+        return seeds.contains(to);
+    }
+
     /* Sends a Gossip message to a live member and returns true if the recipient was a seed */
     private boolean doGossipToLiveMember(MessageOut<GossipDigestSyn> message)
     {
@@ -988,7 +1024,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.trace("marking as alive {}", addr);
         localState.markAlive();
         localState.updateTimestamp(); // prevents doStatusCheck from racing us and evicting if it was down > aVeryLongTime
-        liveEndpoints.add(addr);
+        if(DatabaseDescriptor.getDatacenterTopologyProvider().isGossipableDatacenter(DatabaseDescriptor.getEndpointSnitch().getDatacenter(addr)))
+            liveEndpoints.put(addr, DatabaseDescriptor.getEndpointSnitch().getDatacenter(addr));
         unreachableEndpoints.remove(addr);
         expireTimeEndpointMap.remove(addr);
         logger.debug("removing expire time for endpoint : {}", addr);
@@ -1464,7 +1501,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.info("Announcing shutdown");
             addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
             MessageOut message = new MessageOut(MessagingService.Verb.GOSSIP_SHUTDOWN);
-            for (InetAddress ep : liveEndpoints)
+            for (InetAddress ep : liveEndpoints.keySet())
                 MessagingService.instance().sendOneWay(message, ep);
             Uninterruptibles.sleepUninterruptibly(Integer.getInteger("cassandra.shutdown_announce_in_ms", 2000), TimeUnit.MILLISECONDS);
         }

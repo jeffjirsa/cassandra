@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeSet;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -4706,4 +4707,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         diskBoundaries.add(partitioner.getMaximumToken().maxKeyBound());
         return diskBoundaries;
     }
+
+    public Set<String> getAllDatacenters()
+    {
+        Set<String> allDatacenters = new TreeSet<>();
+        for(InetAddress ep : tokenMetadata.getNormalAndBootstrappingTokenToEndpointMap().values())
+            allDatacenters.add(DatabaseDescriptor.getEndpointSnitch().getDatacenter(ep));
+        return allDatacenters;
+    }
+
+    public Set<String> getGossipableDatacenters()
+    {
+        return DatabaseDescriptor.getDatacenterTopologyProvider().filteredDatacenters(getAllDatacenters());
+    }
+
+    public void reloadDatacenterTopologyProvider()
+    {
+        DatabaseDescriptor.getDatacenterTopologyProvider().reloadDatacenterTopologyProvider();
+    }
+
 }

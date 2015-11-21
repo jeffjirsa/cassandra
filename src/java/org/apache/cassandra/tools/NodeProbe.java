@@ -422,6 +422,16 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.effectiveOwnership(keyspace);
     }
 
+    public Set<String> getAllDatacenters()
+    {
+        return ssProxy.getAllDatacenters();
+    }
+
+    public Set<String> getGossipableDatacenters()
+    {
+        return ssProxy.getGossipableDatacenters();
+    }
+
     public CacheServiceMBean getCacheServiceMBean()
     {
         String cachePath = "org.apache.cassandra.db:type=Caches";
