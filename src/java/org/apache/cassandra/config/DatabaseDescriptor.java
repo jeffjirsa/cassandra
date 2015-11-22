@@ -54,6 +54,7 @@ import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.thrift.ThriftServer;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.*;
 import org.apache.commons.lang3.StringUtils;
@@ -76,7 +77,6 @@ public class DatabaseDescriptor
     private static InetAddress broadcastRpcAddress;
     private static SeedProvider seedProvider;
     private static IInternodeAuthenticator internodeAuthenticator;
-    private static IDatacenterTopologyProvider datacenterTopologyDefinition;
 
     /* Hashing strategy Random or OPHF */
     private static IPartitioner partitioner;
