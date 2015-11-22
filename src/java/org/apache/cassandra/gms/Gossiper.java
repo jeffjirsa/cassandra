@@ -639,7 +639,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private boolean sendGossip(MessageOut<GossipDigestSyn> message, Set<InetAddress> epSet)
     {
         List<InetAddress> liveEndpoints = ImmutableList.copyOf(epSet);
-        
+
         int size = liveEndpoints.size();
         if (size < 1)
             return false;
@@ -657,7 +657,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * Returns true if the chosen target was also a seed. False otherwise
      *
      * @param message
-     * @param epSet   a set of endpoint from which a random endpoint is chosen.
+     * @param epSet   a map of endpoint:string (datacenter) pairs from which a random endpoint is chosen.
      * @return true if the chosen endpoint is also a seed.
      */
     private boolean sendGossip(MessageOut<GossipDigestSyn> message, Map<InetAddress,String> epSet)
@@ -671,6 +671,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         };
 
         Map<InetAddress,String> liveEndpointsFiltered = Maps.filterValues(epSet, dcTopologyFilter);
+        if(logger.isTraceEnabled())
+            logger.trace("Sending gossip message... message {}, filtered endpoint set {}", message, liveEndpointsFiltered);
 
         int size = liveEndpointsFiltered.size();
         if (size < 1)
@@ -1024,8 +1026,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.trace("marking as alive {}", addr);
         localState.markAlive();
         localState.updateTimestamp(); // prevents doStatusCheck from racing us and evicting if it was down > aVeryLongTime
-        if(DatabaseDescriptor.getDatacenterTopologyProvider().isGossipableDatacenter(DatabaseDescriptor.getEndpointSnitch().getDatacenter(addr)))
-            liveEndpoints.put(addr, DatabaseDescriptor.getEndpointSnitch().getDatacenter(addr));
+        if(logger.isTraceEnabled() && !DatabaseDescriptor.getDatacenterTopologyProvider().isGossipableDatacenter(DatabaseDescriptor.getEndpointSnitch().getDatacenter(addr)))
+            logger.trace("marking {} alive, but not gossipable datacenter {}", addr, DatabaseDescriptor.getEndpointSnitch().getDatacenter(addr));
+        liveEndpoints.putIfAbsent(addr, DatabaseDescriptor.getEndpointSnitch().getDatacenter(addr));
         unreachableEndpoints.remove(addr);
         expireTimeEndpointMap.remove(addr);
         logger.debug("removing expire time for endpoint : {}", addr);
