@@ -70,7 +70,7 @@ public class DatabaseDescriptor
     private static final int MAX_NUM_TOKENS = 1536;
 
     private static IEndpointSnitch snitch;
-    private static IDatacenterTopologyProvider dcTopologyProvider;
+    private static IDatacenterTopologyProvider dcTopologyProvider = new MeshDatacenterTopologyProvider();
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
     private static InetAddress broadcastAddress;
     private static InetAddress rpcAddress;
@@ -453,10 +453,10 @@ public class DatabaseDescriptor
             }
         };
 
-        logger.debug("Creating dc topology provider object for class "+ conf.datacenter_topology_provider);
-        dcTopologyProvider = createDatacenterTopologyProvider(conf.datacenter_topology_provider);
-        if(!dcTopologyProvider.isGossipableDatacenter(localDC))
-            throw new ConfigurationException("DatacenterTopologyProvider is set to filter local DC " + localDC + ", this is an invalid configuration");
+        if (conf.datacenter_topology_provider != null)
+            dcTopologyProvider = createDatacenterTopologyProvider(conf.datacenter_topology_provider);
+            if(!dcTopologyProvider.isGossipableDatacenter(localDC))
+                throw new ConfigurationException("DatacenterTopologyProvider is set to filter local DC " + localDC + ", this is an invalid configuration");
 
         /* Request Scheduler setup */
         requestSchedulerOptions = conf.request_scheduler_options;
