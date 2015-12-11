@@ -99,7 +99,7 @@ public class BlacklistingPropertyFileDatacenterTopologyProvider implements IData
     {
         if(excludeDcs != null)
         {
-            if(!excludeDcs.contains(dcName.trim()))
+            if(excludeDcs.contains(dcName.trim()))
                 return false;
             else
                 return true;
@@ -128,6 +128,7 @@ public class BlacklistingPropertyFileDatacenterTopologyProvider implements IData
         {
             if (! this.excludeDcs.contains(dc))
             {
+                logger.info("Re-enabling hints for previously disabled dc " + dc);
                 DatabaseDescriptor.enableHintsForDC(dc);
                 this.restoreHHDCs.remove(dc);
             }
@@ -137,7 +138,7 @@ public class BlacklistingPropertyFileDatacenterTopologyProvider implements IData
         {
             lastHashCode = hashCode();
             // For each KS, the replication strategy may need to be reinstantiated in order to take advantage of
-            // changes in the list of datacenters. TODO: Find the right way to do this safely.
+            // changes in the list of datacenters.
             for(String ksName : Schema.instance.getNonSystemKeyspaces())
             {
                 Keyspace k = Keyspace.open(ksName);

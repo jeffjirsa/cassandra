@@ -858,9 +858,11 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 # request_scheduler_id: keyspace
 
 
-# Datacenter topology providers allow operators to specify dc-to-dc
-# communication rules, enabling topologies such as edge, hub-and-spoke
-# or daisy-chained DCs.
+# Datacenter topology providers allow operators to specify local node to 
+# remote dc communication rules, enabling topologies such as edge, 
+# hub-and-spoke or daisy-chained DCs. The topology is set per-node,
+# but should likely match for all nodes within a given datacenter
+#
 # By default, MeshDatacenterTopology allows for fully connected meshes
 datacenter_topology_provider: MeshDatacenterTopologyProvider
 

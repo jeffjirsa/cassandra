@@ -118,7 +118,7 @@ public class WhitelistingPropertyFileDatacenterTopologyProvider implements IData
         reloadConfiguration();
         for (String dc : StorageService.instance.getAllDatacenters())
         {
-            if (!includeDcs.contains(dc) && !restoreHHDCs.contains(dc))
+            if (!includeDcs.contains(dc) && !dcsWithHHDisabled.contains(dc) && !restoreHHDCs.contains(dc))
             {
                 logger.info("Disabling communication with dc " + dc + ", explicitly disabling hints");
                 DatabaseDescriptor.disableHintsForDC(dc);
@@ -131,7 +131,7 @@ public class WhitelistingPropertyFileDatacenterTopologyProvider implements IData
         {
             if (!includeDcs.contains(dc) && !dcsWithHHDisabled.contains(dc))
             {
-                logger.info("Re-enabling hints for " + dc);
+                logger.info("Re-enabling hints for previously disabled dc " + dc);
                 DatabaseDescriptor.enableHintsForDC(dc);
                 restoreHHDCs.remove(dc);
             }
@@ -141,7 +141,7 @@ public class WhitelistingPropertyFileDatacenterTopologyProvider implements IData
         {
             lastHashCode = hashCode();
             // For each KS, the replication strategy may need to be reinstantiated in order to take advantage of
-            // changes in the list of datacenters. TODO: Find the right way to do this safely.
+            // changes in the list of datacenters.
             for(String ksName : Schema.instance.getNonSystemKeyspaces())
             {
                 Keyspace k = Keyspace.open(ksName);
