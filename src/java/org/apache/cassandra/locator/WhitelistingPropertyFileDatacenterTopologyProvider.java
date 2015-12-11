@@ -22,6 +22,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ResourceWatcher;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -53,6 +54,8 @@ public class WhitelistingPropertyFileDatacenterTopologyProvider implements IData
     private static final int REFRESH_PERIOD_IN_SECONDS = 60;
 
     private Set<String> includeDcs = new TreeSet<>();
+    private Set<String> dcsWithHHDisabled = DatabaseDescriptor.hintedHandoffDisabledDCs();
+    private Set<String> restoreHHDCs = new TreeSet<>();
 
     private int lastHashCode = -1;
 
@@ -78,9 +81,11 @@ public class WhitelistingPropertyFileDatacenterTopologyProvider implements IData
         }
     }
 
-    /*
-     *
-     */
+    public boolean filtersDatacenters()
+    {
+        return true;
+    }
+
     public Set<String> filteredDatacenters(Set<String> rawDatacenterSet)
     {
         Set<String> filteredDatacenters = new TreeSet<>(rawDatacenterSet);
@@ -97,7 +102,7 @@ public class WhitelistingPropertyFileDatacenterTopologyProvider implements IData
     {
         if(includeDcs != null)
         {
-            if(includeDcs.contains(dcName.trim().toLowerCase()))
+            if(includeDcs.contains(dcName))
                 return true;
             else
                 return false;
@@ -107,13 +112,31 @@ public class WhitelistingPropertyFileDatacenterTopologyProvider implements IData
 
     }
 
-    /*
-     * Reload the config from disk
-     */
-    public void reloadDatacenterTopologyProvider() throws ConfigurationException
+    public synchronized void reloadDatacenterTopologyProvider() throws ConfigurationException
     {
         logger.debug("WhitelistingPropertyFileDatacenterTopologyProvider.reloadDatacenterTopologyProvider()");
         reloadConfiguration();
+        for (String dc : StorageService.instance.getAllDatacenters())
+        {
+            if (!includeDcs.contains(dc) && !restoreHHDCs.contains(dc))
+            {
+                logger.info("Disabling communication with dc " + dc + ", explicitly disabling hints");
+                DatabaseDescriptor.disableHintsForDC(dc);
+                restoreHHDCs.add(dc);
+            }
+        }
+
+        // For DCs where we've explicitly disabled HH, restore it once we gossip with that DC
+        for (String dc : restoreHHDCs)
+        {
+            if (!includeDcs.contains(dc) && !dcsWithHHDisabled.contains(dc))
+            {
+                logger.info("Re-enabling hints for " + dc);
+                DatabaseDescriptor.enableHintsForDC(dc);
+                restoreHHDCs.remove(dc);
+            }
+        }
+
         if(lastHashCode != hashCode())
         {
             lastHashCode = hashCode();
@@ -140,7 +163,7 @@ public class WhitelistingPropertyFileDatacenterTopologyProvider implements IData
     private void reloadConfiguration() throws ConfigurationException
     {
         final DatacenterTopologyProperties properties = new DatacenterTopologyProperties();
-        final String thisDatacenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress()).toLowerCase();
+        final String thisDatacenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
         final String invalidFilterMessage = "DatacenterTopologyProvider is set to filter local DC " + thisDatacenter + ", this is an invalid configuration";
 
         String includeDcsRaw = properties.get("include_datacenters", null);
@@ -155,10 +178,10 @@ public class WhitelistingPropertyFileDatacenterTopologyProvider implements IData
             for (String dc : includeDcsRaw.split(","))
             {
                 if (!this.includeDcs.contains(dc)) {
-                    if (dc.trim().toLowerCase().equals(thisDatacenter))
+                    if (dc.trim().equals(thisDatacenter))
                         includingLocal = true;
                     logger.debug("Loading " + DatacenterTopologyProperties.DATACENTER_TOPOLOGY_PROPERTY_FILE + ", adding " + dc + " to set of valid datacenters");
-                    this.includeDcs.add(dc.trim().toLowerCase());
+                    this.includeDcs.add(dc.trim());
                 }
             }
             if(!includingLocal)

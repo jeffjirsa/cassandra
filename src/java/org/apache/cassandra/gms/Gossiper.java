@@ -36,7 +36,6 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import com.google.common.base.Predicate;
 import static com.google.common.collect.Iterables.filter;
 
-import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,6 +52,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * This module is responsible for Gossiping information for the local endpoint. This abstraction
@@ -662,16 +662,28 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     private boolean sendGossip(MessageOut<GossipDigestSyn> message, Map<InetAddress,String> epSet)
     {
-        Predicate dcTopologyFilter = new Predicate<String>()
-        {
-            @Override
-            public boolean apply(String dc) {
-                return DatabaseDescriptor.getDatacenterTopologyProvider().isGossipableDatacenter(dc);
-            }
-        };
 
-        Map<InetAddress,String> liveEndpointsFiltered = Maps.filterValues(epSet, dcTopologyFilter);
-        if(logger.isTraceEnabled())
+        Map<InetAddress,String> liveEndpointsFiltered;
+
+        // By default, the topology provider does not filter, so skip the predicate
+        // code path unless it's actually being used
+        if (DatabaseDescriptor.getDatacenterTopologyProvider().filtersDatacenters())
+        {
+            Predicate dcTopologyFilter = new Predicate<String>() {
+                @Override
+                public boolean apply(String dc) {
+                    return DatabaseDescriptor.getDatacenterTopologyProvider().isGossipableDatacenter(dc);
+                }
+            };
+
+            liveEndpointsFiltered = Maps.filterValues(epSet, dcTopologyFilter);
+        }
+        else
+        {
+            liveEndpointsFiltered = ImmutableMap.copyOf(epSet);
+        }
+
+        if (logger.isTraceEnabled())
             logger.trace("Sending gossip message... message {}, filtered endpoint set {}", message, liveEndpointsFiltered);
 
         int size = liveEndpointsFiltered.size();

@@ -51,6 +51,14 @@ public class MeshDatacenterTopologyProvider implements IDatacenterTopologyProvid
     /*
      * In a full mesh, no filtering is performed
      */
+    public boolean filtersDatacenters()
+    {
+        return false;
+    }
+
+    /*
+     * In a full mesh, no filtering is performed
+     */
     public boolean isGossipableDatacenter(String dcName) throws ConfigurationException
     {
         return true;

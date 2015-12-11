@@ -35,6 +35,8 @@ public interface IDatacenterTopologyProvider {
 
     public Set<String> filteredDatacenters(Set<String> rawDatacenterSet);
 
+    public boolean filtersDatacenters();
+
     public boolean isGossipableDatacenter(String dc) throws ConfigurationException;
 
     public void reloadDatacenterTopologyProvider() throws ConfigurationException;

@@ -52,6 +52,7 @@ public class BlacklistingPropertyFileDatacenterTopologyProvider implements IData
 
     private Set<String> excludeDcs = new TreeSet<>();
     private Set<String> dcsWithHHDisabled = DatabaseDescriptor.hintedHandoffDisabledDCs();
+    private Set<String> restoreHHDCs = new TreeSet<>();
 
     private int lastHashCode = -1;
 
@@ -77,9 +78,11 @@ public class BlacklistingPropertyFileDatacenterTopologyProvider implements IData
         }
     }
 
-    /*
-     *
-     */
+    public boolean filtersDatacenters()
+    {
+        return true;
+    }
+
     public Set<String> filteredDatacenters(Set<String> rawDatacenterSet)
     {
         Set<String> filteredDatacenters = new TreeSet<>(rawDatacenterSet);
@@ -96,7 +99,7 @@ public class BlacklistingPropertyFileDatacenterTopologyProvider implements IData
     {
         if(excludeDcs != null)
         {
-            if(!excludeDcs.contains(dcName.trim().toLowerCase()))
+            if(!excludeDcs.contains(dcName.trim()))
                 return false;
             else
                 return true;
@@ -106,22 +109,30 @@ public class BlacklistingPropertyFileDatacenterTopologyProvider implements IData
 
     }
 
-    /*
-     * Reload the config from disk
-     */
-    public void reloadDatacenterTopologyProvider() throws ConfigurationException
+    public synchronized void reloadDatacenterTopologyProvider() throws ConfigurationException
     {
         logger.debug("BlacklistingPropertyFileDatacenterTopologyProvider.reloadDatacenterTopologyProvider()");
         reloadConfiguration();
         for(String dc : excludeDcs)
         {
-            if(!dcsWithHHDisabled.contains(dc))
+            if(!dcsWithHHDisabled.contains(dc) && !restoreHHDCs.contains(dc))
             {
                 logger.info("Disabling communication with dc " + dc + ", explicitly disabling hints");
                 DatabaseDescriptor.disableHintsForDC(dc);
                 excludeDcs.add(dc);
+                restoreHHDCs.add(dc);
             }
         }
+        // For DCs where we've explicitly disabled HH, restore it once we gossip with that DC
+        for (String dc : restoreHHDCs)
+        {
+            if (! this.excludeDcs.contains(dc))
+            {
+                DatabaseDescriptor.enableHintsForDC(dc);
+                this.restoreHHDCs.remove(dc);
+            }
+        }
+
         if(lastHashCode != hashCode())
         {
             lastHashCode = hashCode();
@@ -147,7 +158,7 @@ public class BlacklistingPropertyFileDatacenterTopologyProvider implements IData
     private void reloadConfiguration() throws ConfigurationException
     {
         final DatacenterTopologyProperties properties = new DatacenterTopologyProperties();
-        final String thisDatacenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress()).toLowerCase();
+        final String thisDatacenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
         final String invalidFilterMessage = "BlacklistingPropertyFileDatacenterTopologyProvider is set to filter local DC " + thisDatacenter + ", this is an invalid configuration";
 
         String excludeDcsRaw = properties.get("exclude_datacenters", null);
@@ -157,13 +168,14 @@ public class BlacklistingPropertyFileDatacenterTopologyProvider implements IData
         this.excludeDcs = new TreeSet<>();
         excludeDcsRaw = excludeDcsRaw.trim();
         for (String dc : excludeDcsRaw.split(","))
-            if (!this.excludeDcs.contains(dc))
-            {
-                if(dc.trim().toLowerCase().equals(thisDatacenter))
+        {
+            if (!this.excludeDcs.contains(dc)) {
+                if (dc.trim().equals(thisDatacenter))
                     throw new ConfigurationException(invalidFilterMessage);
                 logger.debug("Loading " + DatacenterTopologyProperties.DATACENTER_TOPOLOGY_PROPERTY_FILE + ", adding " + dc + " to set of invalid datacenters");
-                this.excludeDcs.add(dc.trim().toLowerCase());
+                this.excludeDcs.add(dc.trim());
             }
+        }
     }
 
     public int hashCode()
