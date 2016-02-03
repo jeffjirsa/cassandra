@@ -109,5 +109,10 @@ public class CleaningTimeWindowCompactionWriter extends CompactionAwareWriter
         return estimatedTotalKeys;
     }
 
+    @Override
+    public List<SSTableReader> finish(long repairedAt)
+    {
+        return sstableWriter.setRepairedAt(repairedAt).finish();
+    }
 
 }
