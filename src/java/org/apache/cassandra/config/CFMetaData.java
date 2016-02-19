@@ -67,7 +67,7 @@ public final class CFMetaData
 {
     public enum Flag
     {
-        SUPER, COUNTER, DENSE, COMPOUND
+        SUPER, COUNTER, DENSE, COMPOUND, VIRTUAL
     }
 
     private static final Pattern PATTERN_WORD_CHARS = Pattern.compile("\\w+");
@@ -91,6 +91,8 @@ public final class CFMetaData
     private final boolean isView;
 
     private final boolean isIndex;
+
+    private final boolean isVirtual;
 
     public volatile ClusteringComparator comparator;  // bytes, long, timeuuid, utf8, etc. This is built directly from clusteringColumns
     public final IPartitioner partitioner;            // partitioner the table uses
@@ -249,6 +251,7 @@ public final class CFMetaData
                        boolean isDense,
                        boolean isCompound,
                        boolean isView,
+                       boolean isVirtual,
                        List<ColumnDefinition> partitionKeyColumns,
                        List<ColumnDefinition> clusteringColumns,
                        PartitionColumns partitionColumns,
@@ -268,6 +271,7 @@ public final class CFMetaData
         this.isSuper = isSuper;
         this.isCounter = isCounter;
         this.isView = isView;
+        this.isVirtual = isVirtual;
 
         EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
         if (isSuper)
@@ -278,6 +282,9 @@ public final class CFMetaData
             flags.add(Flag.DENSE);
         if (isCompound)
             flags.add(Flag.COMPOUND);
+        if (isVirtual)
+            flags.add(Flag.VIRTUAL);
+
         this.flags = Sets.immutableEnumSet(flags);
 
         isIndex = cfName.contains(".");
@@ -338,6 +345,21 @@ public final class CFMetaData
                                     List<ColumnDefinition> columns,
                                     IPartitioner partitioner)
     {
+        return CFMetaData.create(ksName, name, cfId, isDense, isCompound, isSuper, isCounter, isView, false, columns, partitioner);
+    }
+
+    public static CFMetaData create(String ksName,
+                                    String name,
+                                    UUID cfId,
+                                    boolean isDense,
+                                    boolean isCompound,
+                                    boolean isSuper,
+                                    boolean isCounter,
+                                    boolean isView,
+                                    boolean isVirtual,
+                                    List<ColumnDefinition> columns,
+                                    IPartitioner partitioner)
+    {
         List<ColumnDefinition> partitions = new ArrayList<>();
         List<ColumnDefinition> clusterings = new ArrayList<>();
         PartitionColumns.Builder builder = PartitionColumns.builder();
@@ -369,6 +391,7 @@ public final class CFMetaData
                               isDense,
                               isCompound,
                               isView,
+                              isVirtual,
                               partitions,
                               clusterings,
                               builder.build(),
@@ -470,6 +493,7 @@ public final class CFMetaData
                                        isDense(),
                                        isCompound(),
                                        isView(),
+                                       isVirtual(),
                                        copy(partitionKeyColumns),
                                        copy(clusteringColumns),
                                        copy(partitionColumns),
@@ -487,6 +511,7 @@ public final class CFMetaData
                                        isDense,
                                        isCompound,
                                        isView,
+                                       isVirtual,
                                        copy(partitionKeyColumns),
                                        copy(clusteringColumns),
                                        copy(partitionColumns),
@@ -1080,6 +1105,11 @@ public final class CFMetaData
         return isView;
     }
 
+    public boolean isVirtual()
+    {
+        return isVirtual;
+    }
+
     public Serializers serializers()
     {
         return serializers;
@@ -1139,6 +1169,7 @@ public final class CFMetaData
         private final boolean isSuper;
         private final boolean isCounter;
         private final boolean isView;
+        private final boolean isVirtual;
         private IPartitioner partitioner;
 
         private UUID tableId;
@@ -1148,7 +1179,7 @@ public final class CFMetaData
         private final List<Pair<ColumnIdentifier, AbstractType>> staticColumns = new ArrayList<>();
         private final List<Pair<ColumnIdentifier, AbstractType>> regularColumns = new ArrayList<>();
 
-        private Builder(String keyspace, String table, boolean isDense, boolean isCompound, boolean isSuper, boolean isCounter, boolean isView)
+        private Builder(String keyspace, String table, boolean isDense, boolean isCompound, boolean isSuper, boolean isCounter, boolean isView, boolean isVirtual)
         {
             this.keyspace = keyspace;
             this.table = table;
@@ -1157,6 +1188,7 @@ public final class CFMetaData
             this.isSuper = isSuper;
             this.isCounter = isCounter;
             this.isView = isView;
+            this.isVirtual = isVirtual;
             this.partitioner = DatabaseDescriptor.getPartitioner();
         }
 
@@ -1172,12 +1204,17 @@ public final class CFMetaData
 
         public static Builder create(String keyspace, String table, boolean isDense, boolean isCompound, boolean isSuper, boolean isCounter)
         {
-            return new Builder(keyspace, table, isDense, isCompound, isSuper, isCounter, false);
+            return new Builder(keyspace, table, isDense, isCompound, isSuper, isCounter, false, false);
         }
 
         public static Builder createView(String keyspace, String table)
         {
-            return new Builder(keyspace, table, false, true, false, false, true);
+            return new Builder(keyspace, table, false, true, false, false, true, false);
+        }
+
+        public static Builder createVirtual(String keyspace, String table)
+        {
+            return new Builder(keyspace, table, false, false, false, false, false, true);
         }
 
         public static Builder createDense(String keyspace, String table, boolean isCompound, boolean isCounter)
@@ -1300,6 +1337,7 @@ public final class CFMetaData
                                   isDense,
                                   isCompound,
                                   isView,
+                                  isVirtual,
                                   partitions,
                                   clusterings,
                                   builder.build(),

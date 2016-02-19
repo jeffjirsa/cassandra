@@ -103,6 +103,13 @@ public class UpdateStatement extends ModificationStatement
                 op.execute(update.partitionKey(), params);
             update.add(params.buildRow());
         }
+
+        if (updatesVirtualRows())
+        {
+            for (Operation op : getVirtualOperations())
+                op.execute(update.partitionKey(), params);
+            update.add(params.buildRow());
+        }
     }
 
     @Override

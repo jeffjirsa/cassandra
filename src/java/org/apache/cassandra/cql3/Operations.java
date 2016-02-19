@@ -48,6 +48,11 @@ public final class Operations implements Iterable<Operation>
      */
     private final List<Operation> staticOperations = new ArrayList<>();
 
+    /**
+     * The operations on virtual columns
+     */
+    private final List<Operation> virtualOperations = new ArrayList<>();
+
     public Operations(StatementType type)
     {
         this.type = type;
@@ -92,6 +97,15 @@ public final class Operations implements Iterable<Operation>
     public List<Operation> staticOperations()
     {
         return staticOperations;
+    }
+
+    /**
+     * Returns the operation on virtual columns
+     * @return the operation on virtual columns
+     */
+    public List<Operation> virtualOperations()
+    {
+        return virtualOperations;
     }
 
     /**

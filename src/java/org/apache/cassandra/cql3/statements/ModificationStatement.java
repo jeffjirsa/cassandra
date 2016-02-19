@@ -240,12 +240,17 @@ public abstract class ModificationStatement implements CQLStatement
         // columns is if we set some static columns, and in that case no clustering
         // columns should be given. So in practice, it's enough to check if we have
         // either the table has no clustering or if it has at least one of them set.
-        return cfm.clusteringColumns().isEmpty() || restrictions.hasClusteringColumnsRestriction();
+        return !cfm.isVirtual() && (cfm.clusteringColumns().isEmpty() || restrictions.hasClusteringColumnsRestriction());
     }
 
     public boolean updatesStaticRow()
     {
         return operations.appliesToStaticColumns();
+    }
+
+    public boolean updatesVirtualRows()
+    {
+        return cfm.isVirtual();
     }
 
     public List<Operation> getRegularOperations()
@@ -256,6 +261,11 @@ public abstract class ModificationStatement implements CQLStatement
     public List<Operation> getStaticOperations()
     {
         return operations.staticOperations();
+    }
+
+    public List<Operation> getVirtualOperations()
+    {
+        return operations.virtualOperations();
     }
 
     public Iterable<Operation> allOperations()
