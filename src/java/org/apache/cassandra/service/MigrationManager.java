@@ -330,6 +330,8 @@ public class MigrationManager
 
     private static void announceNewColumnFamily(CFMetaData cfm, boolean announceLocally, boolean throwOnDuplicate) throws ConfigurationException
     {
+        AbstractVirtualColumnFamilyStore virtualColumnFamilyStore;
+
         cfm.validate();
 
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(cfm.ksName);
@@ -338,6 +340,12 @@ public class MigrationManager
         // If we have a table or a view which has the same name, we can't add a new one
         else if (throwOnDuplicate && ksm.getTableOrViewNullable(cfm.cfName) != null)
             throw new AlreadyExistsException(cfm.ksName, cfm.cfName);
+
+        if (cfm.isVirtual())
+        {
+            // Try to instantiate the virtual table class before we announce the table creation
+            CFMetaData.createVirtualColumnFamilyInstance(cfm)
+        }
 
         logger.info(String.format("Create new table: %s", cfm));
         announce(SchemaKeyspace.makeCreateTableMutation(ksm, cfm, FBUtilities.timestampMicros()), announceLocally);

@@ -112,9 +112,11 @@ public final class Operations implements Iterable<Operation>
      * Adds the specified <code>Operation</code> to this set of operations.
      * @param operation the operation to add
      */
-    public void add(Operation operation)
+    public void add(Operation operation, boolean isVirtual)
     {
-        if (operation.column.isStatic())
+        if (isVirtual)
+            virtualOperations.add(operation);
+        else if (operation.column.isStatic())
             staticOperations.add(operation);
         else
             regularOperations.add(operation);

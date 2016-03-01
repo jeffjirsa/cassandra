@@ -149,7 +149,7 @@ public class DeleteStatement extends ModificationStatement
 
                 Operation op = deletion.prepare(cfm.ksName, def);
                 op.collectMarkerSpecification(boundNames);
-                operations.add(op);
+                operations.add(op, cfm.isVirtual());
             }
 
             StatementRestrictions restrictions = newRestrictions(cfm,

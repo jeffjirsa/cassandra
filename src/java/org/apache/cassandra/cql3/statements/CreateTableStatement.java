@@ -53,6 +53,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
     private boolean isDense;
     private boolean isCompound;
+    private boolean isVirtual;
     private boolean hasCounters;
 
     // use a TreeMap to preserve ordering across JDK versions (see CASSANDRA-9492)
@@ -63,6 +64,8 @@ public class CreateTableStatement extends SchemaAlteringStatement
     private final boolean ifNotExists;
     private final UUID id;
 
+    private final String klass;
+
     public CreateTableStatement(CFName name, TableParams params, boolean ifNotExists, Set<ColumnIdentifier> staticColumns, UUID id)
     {
         super(name);
@@ -70,7 +73,21 @@ public class CreateTableStatement extends SchemaAlteringStatement
         this.ifNotExists = ifNotExists;
         this.staticColumns = staticColumns;
         this.id = id;
+        this.isVirtual = false;
+        this.klass = null;
     }
+
+    public CreateTableStatement(CFName name, TableParams params, boolean ifNotExists, boolean isVirtual, Set<ColumnIdentifier> staticColumns, UUID id, String klass)
+    {
+        super(name);
+        this.params = params;
+        this.ifNotExists = ifNotExists;
+        this.isVirtual = isVirtual;
+        this.staticColumns = staticColumns;
+        this.id = id;
+        this.klass = klass;
+    }
+
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
@@ -115,7 +132,12 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
     public CFMetaData.Builder metadataBuilder()
     {
-        CFMetaData.Builder builder = CFMetaData.Builder.create(keyspace(), columnFamily(), isDense, isCompound, hasCounters);
+        CFMetaData.Builder builder;
+        if(isVirtual)
+            builder = CFMetaData.Builder.createVirtual(keyspace(), columnFamily(), isCompound);
+        else
+            builder = CFMetaData.Builder.create(keyspace(), columnFamily(), isDense, isCompound, hasCounters);
+
         builder.withId(id);
         for (int i = 0; i < keyAliases.size(); i++)
             builder.addPartitionKey(keyAliases.get(i), keyTypes.get(i));
@@ -183,11 +205,23 @@ public class CreateTableStatement extends SchemaAlteringStatement
         private final Multiset<ColumnIdentifier> definedNames = HashMultiset.create(1);
 
         private final boolean ifNotExists;
+        private final boolean isVirtual;
+        private final String klass;
 
         public RawStatement(CFName name, boolean ifNotExists)
         {
             super(name);
             this.ifNotExists = ifNotExists;
+            this.isVirtual = false;
+            this.klass = null;
+        }
+
+        public RawStatement(CFName name, boolean ifNotExists, boolean isVirtual, String klass)
+        {
+            super(name);
+            this.ifNotExists = ifNotExists;
+            this.isVirtual = isVirtual;
+            this.klass = klass;
         }
 
         /**
@@ -217,7 +251,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
             TableParams params = properties.properties.asNewTableParams();
 
-            CreateTableStatement stmt = new CreateTableStatement(cfName, params, ifNotExists, staticColumns, properties.properties.getId());
+            CreateTableStatement stmt = new CreateTableStatement(cfName, params, ifNotExists, isVirtual, staticColumns, properties.properties.getId(), klass);
 
             for (Map.Entry<ColumnIdentifier, CQL3Type.Raw> entry : definitions.entrySet())
             {

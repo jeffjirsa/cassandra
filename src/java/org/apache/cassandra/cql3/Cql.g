@@ -708,9 +708,12 @@ createKeyspaceStatement returns [CreateKeyspaceStatement expr]
  * ) WITH <property> = <value> AND ...;
  */
 createTableStatement returns [CreateTableStatement.RawStatement expr]
-    @init { boolean ifNotExists = false; }
-    : K_CREATE K_COLUMNFAMILY (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
-      cf=columnFamilyName { $expr = new CreateTableStatement.RawStatement(cf, ifNotExists); }
+    @init {
+        boolean ifNotExists = false;
+        boolean isVirtual = false;
+        }
+    : K_CREATE K_COLUMNFAMILY (K_USING cls=STRING_LITERAL { isVirtual=true; })? (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
+      cf=columnFamilyName { $expr = new CreateTableStatement.RawStatement(cf, ifNotExists, isVirtual, $cls.text ); }
       cfamDefinition[expr]
     ;
 

@@ -29,35 +29,32 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
-/**
- * The MBean interface for ColumnFamilyStore
- */
-public interface VirtualColumnFamilyStoreMBean
+public abstract class AbstractVirtualColumnFamilyStore
 {
     /**
      * @return the name of the column family
      */
     @Deprecated
-    public String getColumnFamilyName();
+    abstract public String getColumnFamilyName();
 
-    public String getTableName();
+    abstract public String getTableName();
     
     /**
      * Register this class as a new virtual table
      */
-    public void create(String ksName, String cfName);
+    abstract public void create(String ksName, String cfName);
 
     /**
      * Is this table writable?
      *
      * @return True if UPDATE is supported
      */
-    public boolean writable();
+    abstract public boolean writable();
 
     /*
      * Virtual table schemas aren't saved to disk, but we must have a way to describe them for drivers
      */
-    public Map<ColumnIdentifier, ColumnDefinition> getSchema();
+    abstract public Map<ColumnIdentifier, ColumnDefinition> getSchema();
 
     /**
      * Execute an update operation.
@@ -76,6 +73,6 @@ public interface VirtualColumnFamilyStoreMBean
      * @throws RequestExecutionException
      * @throws RequestValidationException
      */
-    public ResultMessage.Rows execute(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException;
+    public abstract ResultMessage.Rows execute(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException;
 
 }

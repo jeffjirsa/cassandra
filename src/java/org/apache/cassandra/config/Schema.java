@@ -36,6 +36,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.AbstractVirtualColumnFamilyStore;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
@@ -76,6 +77,9 @@ public class Schema
 
     /* metadata map for faster ColumnFamily lookup */
     private final ConcurrentBiMap<Pair<String, String>, UUID> cfIdMap = new ConcurrentBiMap<>();
+
+    /* map of virtual tables */
+    private final ConcurrentBiMap<Pair<String, String>, AbstractVirtualColumnFamilyStore> virtualTableMap = new ConcurrentBiMap<>();
 
     private volatile UUID version;
 
@@ -801,5 +805,15 @@ public class Schema
         setKeyspaceMetadata(transformed);
 
         return transformed;
+    }
+
+    public AbstractVirtualColumnFamilyStore getVirtualTable(String keyspaceName, String tableName)
+    {
+        return virtualTableMap.get(Pair.create(keyspaceName,tableName));
+    }
+
+    public void putVirtualTable(String keyspaceName, String tableName, AbstractVirtualColumnFamilyStore virtualTable )
+    {
+        virtualTableMap.put(Pair.create(keyspaceName, tableName), virtualTable);
     }
 }

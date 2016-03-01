@@ -257,6 +257,7 @@ public final class CFMetaData
                        PartitionColumns partitionColumns,
                        IPartitioner partitioner)
     {
+        logger.info(String.format("CFMetaData %s.%s, virtual = %s", keyspace, name, isVirtual));
         this.cfId = cfId;
         this.ksName = keyspace;
         this.cfName = name;
@@ -841,6 +842,33 @@ public final class CFMetaData
         }
     }
 
+
+    public static Class<? extends AbstractVirtualColumnFamilyStore> createVirtualColumnFamily(String className) throws ConfigurationException
+    {
+        className = className.contains(".") ? className : "org.apache.cassandra.db." + className;
+        Class<AbstractVirtualColumnFamilyStore> strategyClass = FBUtilities.classForName(className, "virtual table");
+        if (!AbstractCompactionStrategy.class.isAssignableFrom(strategyClass))
+            throw new ConfigurationException(String.format("Specified virtual class (%s) is not derived from AbstractVirtualColumnFamily", className));
+
+        return strategyClass;
+    }
+
+    public static AbstractVirtualColumnFamilyStore createVirtualColumnFamilyInstance(ColumnFamilyStore cfs,
+                                                                              VirtualTableParams virtualTableParams)
+    {
+        try
+        {
+            Constructor<? extends AbstractVirtualColumnFamilyStore> constructor =
+                    virtualTableParams.klass().getConstructor(ColumnFamilyStore.class, Map.class);
+            return constructor.newInstance(cfs, virtualTableParams.options());
+        }
+        catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | InstantiationException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+
     /**
      * Returns the ColumnDefinition for {@code name}.
      */
@@ -1138,6 +1166,13 @@ public final class CFMetaData
                     .collect(Collectors.toSet());
     }
 
+    public String getVirtualClass()
+    {
+        if(!isVirtual)
+            throw new InvalidRequestException(String.format("Can not get virtual class of non virtual table"));
+
+        return
+    }
 
     @Override
     public String toString()
@@ -1212,9 +1247,9 @@ public final class CFMetaData
             return new Builder(keyspace, table, false, true, false, false, true, false);
         }
 
-        public static Builder createVirtual(String keyspace, String table)
+        public static Builder createVirtual(String keyspace, String table, boolean isCompound)
         {
-            return new Builder(keyspace, table, false, false, false, false, false, true);
+            return new Builder(keyspace, table, false, isCompound, false, false, false, true);
         }
 
         public static Builder createDense(String keyspace, String table, boolean isCompound, boolean isCounter)

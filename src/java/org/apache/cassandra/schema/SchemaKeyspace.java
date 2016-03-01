@@ -108,7 +108,7 @@ public final class SchemaKeyspace
                 + "dclocal_read_repair_chance double,"
                 + "default_time_to_live int,"
                 + "extensions frozen<map<text, blob>>,"
-                + "flags frozen<set<text>>," // SUPER, COUNTER, DENSE, COMPOUND
+                + "flags frozen<set<text>>," // SUPER, COUNTER, DENSE, COMPOUND, VIRTUAL
                 + "gc_grace_seconds int,"
                 + "id uuid,"
                 + "max_index_interval int,"
@@ -116,6 +116,7 @@ public final class SchemaKeyspace
                 + "min_index_interval int,"
                 + "read_repair_chance double,"
                 + "speculative_retry text,"
+                + "virtual_class text, "
                 + "PRIMARY KEY ((keyspace_name), table_name))");
 
     private static final CFMetaData Columns =
@@ -954,6 +955,7 @@ public final class SchemaKeyspace
         boolean isCounter = flags.contains(CFMetaData.Flag.COUNTER);
         boolean isDense = flags.contains(CFMetaData.Flag.DENSE);
         boolean isCompound = flags.contains(CFMetaData.Flag.COMPOUND);
+        boolean isVirtual = flags.contains(CFMetaData.Flag.VIRTUAL);
 
         List<ColumnDefinition> columns = fetchColumns(keyspaceName, tableName, types);
         Map<ByteBuffer, CFMetaData.DroppedColumn> droppedColumns = fetchDroppedColumns(keyspaceName, tableName);
@@ -968,6 +970,7 @@ public final class SchemaKeyspace
                                  isSuper,
                                  isCounter,
                                  false,
+                                 isVirtual,
                                  columns,
                                  DatabaseDescriptor.getPartitioner())
                          .params(createTableParamsFromRow(row))

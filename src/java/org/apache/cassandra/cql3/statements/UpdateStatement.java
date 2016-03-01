@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.db.Clustering;
@@ -106,9 +107,12 @@ public class UpdateStatement extends ModificationStatement
 
         if (updatesVirtualRows())
         {
-            for (Operation op : getVirtualOperations())
-                op.execute(update.partitionKey(), params);
-            update.add(params.buildRow());
+            logger.info("Updates Virtual Rows!");
+            logger.info(String.format("Args: update: %s , clustering: %s, params: %s", update.toString(), clustering.toString(params.metadata), params));
+            for (Operation op : getVirtualOperations()) {
+                logger.info(String.format("Execute: %s, %s, %s", update.partitionKey(), params.updatedColumns , params.options.getValues() ) ) ;
+                Schema.instance.getVirtualTable(params.metadata.ksName, params.metadata.cfName).execute(update.partitionKey(), params);
+            }
         }
     }
 
@@ -179,7 +183,7 @@ public class UpdateStatement extends ModificationStatement
                 {
                     Operation operation = new Operation.SetValue(value).prepare(keyspace(), def);
                     operation.collectMarkerSpecification(boundNames);
-                    operations.add(operation);
+                    operations.add(operation, cfm.isVirtual());
                 }
             }
 
@@ -248,7 +252,7 @@ public class UpdateStatement extends ModificationStatement
                 {
                     Operation operation = new Operation.SetValue(raw).prepare(keyspace(), def);
                     operation.collectMarkerSpecification(boundNames);
-                    operations.add(operation);
+                    operations.add(operation, cfm.isVirtual());
                 }
             }
 
@@ -317,7 +321,7 @@ public class UpdateStatement extends ModificationStatement
 
                 Operation operation = entry.right.prepare(keyspace(), def);
                 operation.collectMarkerSpecification(boundNames);
-                operations.add(operation);
+                operations.add(operation, cfm.isVirtual());
             }
 
             StatementRestrictions restrictions = newRestrictions(cfm,
