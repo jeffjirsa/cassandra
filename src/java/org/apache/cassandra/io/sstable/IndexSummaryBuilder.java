@@ -46,6 +46,8 @@ public class IndexSummaryBuilder implements AutoCloseable
     private long indexIntervalMatches = 0;
     private long nextSamplePosition;
 
+    private final long keySizeEstimate = Long.valueOf(System.getProperty("cassandra.key_index_size", "40"));
+
     // for each ReadableBoundary, we map its dataLength property to itself, permitting us to lookup the
     // last readable boundary from the perspective of the data file
     // [data file position limit] => [ReadableBoundary]
@@ -90,12 +92,14 @@ public class IndexSummaryBuilder implements AutoCloseable
         this.startPoints = Downsampling.getStartPoints(BASE_SAMPLING_LEVEL, samplingLevel);
 
         long maxExpectedEntries = expectedKeys / minIndexInterval;
-        if (maxExpectedEntries > Integer.MAX_VALUE)
+        long maxExpectedSize = maxExpectedEntries * keySizeEstimate;
+        if (maxExpectedSize > Integer.MAX_VALUE)
         {
             // that's a _lot_ of keys, and a very low min index interval
-            int effectiveMinInterval = (int) Math.ceil((double) Integer.MAX_VALUE / expectedKeys);
+            int effectiveMinInterval = (int) Math.ceil((double) Integer.MAX_VALUE / (expectedKeys * keySizeEstimate));
             maxExpectedEntries = expectedKeys / effectiveMinInterval;
-            assert maxExpectedEntries <= Integer.MAX_VALUE : maxExpectedEntries;
+
+            assert maxExpectedSize <= Integer.MAX_VALUE : maxExpectedSize;
             logger.warn("min_index_interval of {} is too low for {} expected keys; using interval of {} instead",
                         minIndexInterval, expectedKeys, effectiveMinInterval);
             this.minIndexInterval = effectiveMinInterval;
@@ -108,7 +112,7 @@ public class IndexSummaryBuilder implements AutoCloseable
         // for initializing data structures, adjust our estimates based on the sampling level
         maxExpectedEntries = Math.max(1, (maxExpectedEntries * samplingLevel) / BASE_SAMPLING_LEVEL);
         offsets = new SafeMemoryWriter(4 * maxExpectedEntries).withByteOrder(ByteOrder.nativeOrder());
-        entries = new SafeMemoryWriter(40 * maxExpectedEntries).withByteOrder(ByteOrder.nativeOrder());
+        entries = new SafeMemoryWriter(keySizeEstimate * maxExpectedEntries).withByteOrder(ByteOrder.nativeOrder());
 
         // the summary will always contain the first index entry (downsampling will never remove it)
         nextSamplePosition = 0;
