@@ -955,3 +955,7 @@ windows_timer_interval: 1
 # early. Any value size larger than this threshold will result into marking an SSTable
 # as corrupted.
 # max_value_size_in_mb: 256
+
+# Probability cassandra will Gossip with one of the seeds during each round of gossip
+# Valid range is between 0.01 and 1.0
+# seed_gossip_probability: 1.0
