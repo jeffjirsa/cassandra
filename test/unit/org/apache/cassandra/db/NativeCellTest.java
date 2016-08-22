@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -141,7 +142,7 @@ public class NativeCellTest
 
             // test regular Cell
             Cell buf, nat;
-            buf = new BufferCell(test.name, ByteBuffer.wrap(bytes), rand.nextLong());
+            buf = new BufferCell(test.name, ByteBuffer.wrap(bytes), 1L);
             nat = buf.localCopy(metadata, nativeAllocator, group);
             test(test, buf, nat);
 
@@ -255,6 +256,7 @@ public class NativeCellTest
             MessageDigest d2 = MessageDigest.getInstance("MD5");
             buf.updateDigest(d1);
             nat.updateDigest(d2);
+
             Assert.assertArrayEquals(d1.digest(), d2.digest());
         }
         catch (NoSuchAlgorithmException e)

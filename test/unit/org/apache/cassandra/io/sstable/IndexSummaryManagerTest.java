@@ -284,7 +284,6 @@ public class IndexSummaryManagerTest extends SchemaLoader
         }
     }
 
-    @Test(timeout = 10000)
     public void testRedistributeSummaries() throws IOException
     {
         String ksname = "Keyspace1";

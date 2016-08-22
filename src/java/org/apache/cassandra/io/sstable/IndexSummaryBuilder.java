@@ -49,11 +49,11 @@ public class IndexSummaryBuilder implements AutoCloseable
     // for each ReadableBoundary, we map its dataLength property to itself, permitting us to lookup the
     // last readable boundary from the perspective of the data file
     // [data file position limit] => [ReadableBoundary]
-    private TreeMap<Long, ReadableBoundary> lastReadableByData = new TreeMap<>();
+    private final TreeMap<Long, ReadableBoundary> lastReadableByData = new TreeMap<>();
     // for each ReadableBoundary, we map its indexLength property to itself, permitting us to lookup the
     // last readable boundary from the perspective of the index file
     // [index file position limit] => [ReadableBoundary]
-    private TreeMap<Long, ReadableBoundary> lastReadableByIndex = new TreeMap<>();
+    private final TreeMap<Long, ReadableBoundary> lastReadableByIndex = new TreeMap<>();
     // the last synced data file position
     private long dataSyncPosition;
     // the last synced index file position

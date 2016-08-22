@@ -110,7 +110,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         ColumnFamilyStore.removeDeletedColumnsOnly(cf, overriddenGCBefore, controller.cfs.indexManager.gcUpdaterFor(key));
     }
 
-    public RowIndexEntry write(long currentPosition, DataOutputPlus out) throws IOException
+    public IndexedEntry write(long currentPosition, DataOutputPlus out) throws IOException
     {
         assert !closed;
 
@@ -145,7 +145,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
 
         close();
 
-        return RowIndexEntry.create(currentPosition, emptyColumnFamily.deletionInfo().getTopLevelDeletion(), columnsIndex);
+        return IndexedEntryFactory.create(currentPosition, emptyColumnFamily.deletionInfo().getTopLevelDeletion(), columnsIndex);
     }
 
     public void update(final MessageDigest digest)

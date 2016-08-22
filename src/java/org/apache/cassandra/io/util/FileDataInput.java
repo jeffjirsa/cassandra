@@ -28,6 +28,8 @@ public interface FileDataInput extends DataInput, Closeable
 
     public boolean isEOF() throws IOException;
 
+    public boolean isCurrentSegmentExausted() throws IOException;
+
     public long bytesRemaining() throws IOException;
 
     public void seek(long pos) throws IOException;

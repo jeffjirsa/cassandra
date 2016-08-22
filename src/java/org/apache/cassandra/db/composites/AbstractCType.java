@@ -24,9 +24,9 @@ import java.util.Comparator;
 
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.IndexedEntry;
 import org.apache.cassandra.db.NativeCell;
 import org.apache.cassandra.db.RangeTombstone;
-import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
@@ -34,10 +34,9 @@ import org.apache.cassandra.db.marshal.AbstractCompositeType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
 
 public abstract class AbstractCType implements CType
 {
@@ -85,7 +84,7 @@ public abstract class AbstractCType implements CType
     private final IVersionedSerializer<SliceQueryFilter> sliceQueryFilterSerializer;
     private final DeletionInfo.Serializer deletionInfoSerializer;
     private final RangeTombstone.Serializer rangeTombstoneSerializer;
-    private final RowIndexEntry.Serializer rowIndexEntrySerializer;
+    private final IndexedEntry.Serializer rowIndexEntrySerializer;
 
     protected final boolean isByteOrderComparable;
 
@@ -102,14 +101,14 @@ public abstract class AbstractCType implements CType
         {
             public int compare(IndexInfo o1, IndexInfo o2)
             {
-                return AbstractCType.this.compare(o1.lastName, o2.lastName);
+                return AbstractCType.this.compare(o1.getLastNameAsComposite(), o2.getLastNameAsComposite());
             }
         };
         indexReverseComparator = new Comparator<IndexInfo>()
         {
             public int compare(IndexInfo o1, IndexInfo o2)
             {
-                return AbstractCType.this.compare(o1.firstName, o2.firstName);
+                return AbstractCType.this.compare(o1.getFirstNameAsComposite(), o2.getFirstNameAsComposite());
             }
         };
 
@@ -120,7 +119,7 @@ public abstract class AbstractCType implements CType
         sliceQueryFilterSerializer = new SliceQueryFilter.Serializer(this);
         deletionInfoSerializer = new DeletionInfo.Serializer(this);
         rangeTombstoneSerializer = new RangeTombstone.Serializer(this);
-        rowIndexEntrySerializer = new RowIndexEntry.Serializer(this);
+        rowIndexEntrySerializer = new IndexedEntry.Serializer(this);
         this.isByteOrderComparable = isByteOrderComparable;
     }
 
@@ -320,7 +319,7 @@ public abstract class AbstractCType implements CType
         return rangeTombstoneSerializer;
     }
 
-    public RowIndexEntry.Serializer rowIndexEntrySerializer()
+    public IndexedEntry.Serializer rowIndexEntrySerializer()
     {
         return rowIndexEntrySerializer;
     }
@@ -396,6 +395,11 @@ public abstract class AbstractCType implements CType
         public Composite deserialize(DataInput in) throws IOException
         {
             return type.fromByteBuffer(ByteBufferUtil.readWithShortLength(in));
+        }
+
+        public Composite deserialize(ByteBuffer in) throws IOException
+        {
+            return type.fromByteBuffer(in);
         }
 
         public long serializedSize(Composite c, TypeSizes type)

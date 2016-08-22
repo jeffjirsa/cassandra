@@ -245,7 +245,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
         return new SSTableSliceIterator(sstable, key, slices, reversed);
     }
 
-    public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry)
+    public OnDiskAtomIterator getSSTableColumnIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, IndexedEntry indexEntry)
     {
         return new SSTableSliceIterator(sstable, file, key, slices, reversed, indexEntry);
     }

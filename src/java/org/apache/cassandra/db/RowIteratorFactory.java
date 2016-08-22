@@ -21,6 +21,9 @@ import java.util.*;
 
 import com.google.common.collect.Iterables;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.columniterator.IColumnIteratorFactory;
 import org.apache.cassandra.db.columniterator.LazyColumnIterator;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
@@ -32,6 +35,7 @@ import org.apache.cassandra.utils.MergeIterator;
 
 public class RowIteratorFactory
 {
+    private static final Logger logger = LoggerFactory.getLogger(RowIteratorFactory.class);
 
     private static final Comparator<OnDiskAtomIterator> COMPARE_BY_KEY = new Comparator<OnDiskAtomIterator>()
     {

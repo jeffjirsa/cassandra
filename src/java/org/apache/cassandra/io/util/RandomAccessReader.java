@@ -228,6 +228,11 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
         return getFilePointer() == length();
     }
 
+    public boolean isCurrentSegmentExausted() throws IOException
+    {
+        return isEOF();
+    }
+
     public long bytesRemaining()
     {
         return length() - getFilePointer();

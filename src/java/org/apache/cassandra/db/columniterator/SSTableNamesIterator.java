@@ -27,7 +27,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
@@ -50,7 +50,7 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
         this.columns = columns;
         this.key = key;
 
-        RowIndexEntry indexEntry = sstable.getPosition(key, SSTableReader.Operator.EQ);
+        IndexedEntry indexEntry = sstable.getPosition(key, SSTableReader.Operator.EQ);
         if (indexEntry == null)
             return;
 
@@ -70,7 +70,7 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
         }
     }
 
-    public SSTableNamesIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, SortedSet<CellName> columns, RowIndexEntry indexEntry)
+    public SSTableNamesIterator(SSTableReader sstable, FileDataInput file, DecoratedKey key, SortedSet<CellName> columns, IndexedEntry indexEntry)
     {
         assert columns != null;
         this.sstable = sstable;
@@ -94,24 +94,20 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
         return fileToClose;
     }
 
-    private void read(SSTableReader sstable, FileDataInput file, RowIndexEntry indexEntry)
+    private void read(SSTableReader sstable, FileDataInput file, IndexedEntry indexEntry)
     throws IOException
     {
-        List<IndexHelper.IndexInfo> indexList;
-
         // If the entry is not indexed or the index is not promoted, read from the row start
         if (!indexEntry.isIndexed())
         {
             if (file == null)
-                file = createFileDataInput(indexEntry.position);
+                file = createFileDataInput(indexEntry.getPosition());
             else
-                file.seek(indexEntry.position);
+                file.seek(indexEntry.getPosition());
 
             DecoratedKey keyInDisk = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(file));
             assert keyInDisk.equals(key) : String.format("%s != %s in %s", keyInDisk, key, file.getPath());
         }
-
-        indexList = indexEntry.columnsIndex();
 
         if (!indexEntry.isIndexed())
         {
@@ -132,14 +128,14 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
             cf.delete(indexEntry.deletionTime());
         }
 
-        List<OnDiskAtom> result = new ArrayList<OnDiskAtom>();
-        if (indexList.isEmpty())
+        List<OnDiskAtom> result = new ArrayList<>();
+        if (!indexEntry.isIndexed())
         {
             readSimpleColumns(file, columns, result);
         }
         else
         {
-            readIndexedColumns(sstable.metadata, file, columns, indexList, indexEntry.position, result);
+            readIndexedColumns(sstable.metadata, file, columns, indexEntry, result);
         }
 
         // create an iterator view of the columns we read
@@ -172,27 +168,21 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
     private void readIndexedColumns(CFMetaData metadata,
                                     FileDataInput file,
                                     SortedSet<CellName> columnNames,
-                                    List<IndexHelper.IndexInfo> indexList,
-                                    long basePosition,
+                                    IndexedEntry indexedEntry,
                                     List<OnDiskAtom> result)
     throws IOException
     {
         /* get the various column ranges we have to read */
         CellNameType comparator = metadata.comparator;
-        List<IndexHelper.IndexInfo> ranges = new ArrayList<IndexHelper.IndexInfo>();
-        int lastIndexIdx = -1;
+        List<IndexInfo> ranges = new ArrayList<>();
         for (CellName name : columnNames)
         {
-            int index = IndexHelper.indexFor(name, indexList, comparator, false, lastIndexIdx);
-            if (index < 0 || index == indexList.size())
-                continue;
-            IndexHelper.IndexInfo indexInfo = indexList.get(index);
-            // Check the index block does contain the column names and that we haven't inserted this block yet.
-            if (comparator.compare(name, indexInfo.firstName) < 0 || index == lastIndexIdx)
+            IndexInfo indexInfo = indexedEntry.getIndexInfo(name, comparator, indexedEntry.isReversed());
+            if (indexInfo == null)
+                // todo: kjellman; checking for null everywhere is lame
                 continue;
 
             ranges.add(indexInfo);
-            lastIndexIdx = index;
         }
 
         if (ranges.isEmpty())
@@ -200,9 +190,9 @@ public class SSTableNamesIterator extends AbstractIterator<OnDiskAtom> implement
 
         Iterator<CellName> toFetch = columnNames.iterator();
         CellName nextToFetch = toFetch.next();
-        for (IndexHelper.IndexInfo indexInfo : ranges)
+        for (IndexInfo indexInfo : ranges)
         {
-            long positionToSeek = basePosition + indexInfo.offset;
+            long positionToSeek = indexedEntry.getPosition() + indexInfo.offset;
 
             // With new promoted indexes, our first seek in the data file will happen at that point.
             if (file == null)

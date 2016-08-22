@@ -29,7 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.IndexedEntry;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -164,7 +164,7 @@ public class MmappedSegmentedFile extends SegmentedFile
         if (dbuilder instanceof Builder)
             ((Builder) dbuilder).boundaries.clear();
 
-        try (RandomAccessFile raf = new RandomAccessFile(descriptor.filenameFor(Component.PRIMARY_INDEX), "r");)
+        try (RandomAccessFile raf = new RandomAccessFile(descriptor.filenameFor(Component.PRIMARY_INDEX), "r"))
         {
             long iprev = 0, dprev = 0;
             for (int i = 0; i < indexSummary.size(); i++)
@@ -173,8 +173,8 @@ public class MmappedSegmentedFile extends SegmentedFile
                 long icur = indexSummary.getPosition(i);
                 raf.seek(icur);
                 ByteBufferUtil.readWithShortLength(raf);
-                RowIndexEntry rie = metadata.comparator.rowIndexEntrySerializer().deserialize(raf, descriptor.version);
-                long dcur = rie.position;
+                IndexedEntry rie = metadata.comparator.rowIndexEntrySerializer().deserialize(raf, descriptor.version);
+                long dcur = rie.getPosition();
 
                 // if these positions are small enough to map out a segment from the prior version (i.e. less than 2Gb),
                 // just add these as a boundary and proceed to the next index summary record; most scenarios will be
@@ -191,7 +191,7 @@ public class MmappedSegmentedFile extends SegmentedFile
                         // then read the RIE, and add its data file position as a boundary for the data file
                         ByteBufferUtil.readWithShortLength(raf);
                         rie = metadata.comparator.rowIndexEntrySerializer().deserialize(raf, descriptor.version);
-                        dbuilder.addPotentialBoundary(rie.position);
+                        dbuilder.addPotentialBoundary(rie.getPosition());
                     }
                 }
 

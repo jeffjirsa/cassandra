@@ -77,6 +77,8 @@ import org.apache.cassandra.utils.memory.NativePool;
 import org.apache.cassandra.utils.memory.MemtablePool;
 import org.apache.cassandra.utils.memory.SlabPool;
 
+import static org.apache.cassandra.config.Config.DiskAccessMode.mmap_cache_aligned;
+
 public class DatabaseDescriptor
 {
     private static final Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
@@ -339,18 +341,18 @@ public class DatabaseDescriptor
             if (conf.disk_access_mode == Config.DiskAccessMode.auto)
             {
                 conf.disk_access_mode = hasLargeAddressSpace() ? Config.DiskAccessMode.mmap : Config.DiskAccessMode.standard;
-                indexAccessMode = conf.disk_access_mode;
+                indexAccessMode = mmap_cache_aligned;
                 logger.info("DiskAccessMode 'auto' determined to be {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
             }
             else if (conf.disk_access_mode == Config.DiskAccessMode.mmap_index_only)
             {
                 conf.disk_access_mode = Config.DiskAccessMode.standard;
-                indexAccessMode = Config.DiskAccessMode.mmap;
+                indexAccessMode = mmap_cache_aligned;
                 logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
             }
             else
             {
-                indexAccessMode = conf.disk_access_mode;
+                indexAccessMode = mmap_cache_aligned;
                 logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
             }
         }
@@ -658,6 +660,10 @@ public class DatabaseDescriptor
         }
         if (seedProvider.getSeeds().size() == 0)
             throw new ConfigurationException("The seed provider lists no seeds.");
+
+        if (conf.sstable_index_segment_padding_in_kb < 512 || conf.sstable_index_segment_padding_in_kb > 4096
+            || (conf.sstable_index_segment_padding_in_kb & (conf.sstable_index_segment_padding_in_kb & (conf.sstable_index_segment_padding_in_kb - 1))) != 0)
+            throw new ConfigurationException("sstable_index_segment_padding_in_kb must be positive, between 512 and 4096, and a multiple of 2");
     }
 
     private static IEndpointSnitch createEndpointSnitch(String snitchClassName) throws ConfigurationException
@@ -1722,4 +1728,8 @@ public class DatabaseDescriptor
         return conf.gc_warn_threshold_in_ms;
     }
 
+    public static int getSSTableIndexSegmentPaddingLength()
+    {
+        return conf.sstable_index_segment_padding_in_kb;
+    }
 }

@@ -37,9 +37,7 @@ import org.apache.cassandra.thrift.IndexType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.Test;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 
 public class CFMetaDataTest extends SchemaLoader
 {
@@ -104,6 +102,7 @@ public class CFMetaDataTest extends SchemaLoader
             for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
             {
                 CFMetaData cfm = cfs.metadata;
+
                 if (!cfm.isThriftCompatible())
                     continue;
 

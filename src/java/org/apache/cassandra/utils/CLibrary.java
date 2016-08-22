@@ -22,6 +22,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
+import java.nio.channels.FileChannel;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,6 +106,7 @@ public final class CLibrary
     private static native int munlockall() throws LastErrorException;
     private static native int fcntl(int fd, int command, long flags) throws LastErrorException;
     private static native int posix_fadvise(int fd, long offset, int len, int flag) throws LastErrorException;
+    private static native int posix_fadvise(int fd, long offset, long len, int flag) throws LastErrorException;
     private static native int open(String path, int flags) throws LastErrorException;
     private static native int fsync(int fd) throws LastErrorException;
     private static native int close(int fd) throws LastErrorException;
@@ -189,12 +191,18 @@ public final class CLibrary
     {
         if (fd < 0)
             return;
+    }
+
+    public static void tryDisableReadAhead(int fd, long offset, long len)
+    {
+        if (fd < 0)
+            return;
 
         try
         {
             if (System.getProperty("os.name").toLowerCase().contains("linux"))
             {
-                posix_fadvise(fd, offset, len, POSIX_FADV_DONTNEED);
+                posix_fadvise(fd, offset, len, POSIX_FADV_RANDOM);
             }
         }
         catch (UnsatisfiedLinkError e)
@@ -324,6 +332,21 @@ public final class CLibrary
             logger.warn("unable to read fd field from FileDescriptor");
         }
 
+        return -1;
+    }
+
+    public static int getfd(FileChannel channel)
+    {
+        Field field = FBUtilities.getProtectedField(channel.getClass(), "fd");
+
+        try
+        {
+            return getfd((FileDescriptor)field.get(channel));
+        }
+        catch (IllegalArgumentException|IllegalAccessException e)
+        {
+            logger.warn("Unable to read fd field from FileChannel");
+        }
         return -1;
     }
 

@@ -42,10 +42,12 @@ import org.apache.cassandra.db.ColumnSerializer;
 import org.apache.cassandra.db.CounterCell;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.IndexedEntry;
+import org.apache.cassandra.db.IndexedEntryFactory;
 import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.RangeTombstone;
-import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.compaction.AbstractCompactedRow;
+import org.apache.cassandra.db.index.birch.PageAlignedWriter;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
@@ -74,6 +76,7 @@ public class SSTableWriter extends SSTable
     private final SequentialWriter dataFile;
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
+    private FileMark indexMark;
     private final MetadataCollector sstableMetadataCollector;
     private final long repairedAt;
 
@@ -143,10 +146,10 @@ public class SSTableWriter extends SSTable
         this.sstableMetadataCollector = sstableMetadataCollector;
     }
 
-    public void mark()
+    public void mark() throws IOException
     {
         dataMark = dataFile.mark();
-        iwriter.mark();
+        indexMark = iwriter.mark();
     }
 
     public void resetAndTruncate()
@@ -166,7 +169,7 @@ public class SSTableWriter extends SSTable
         return (lastWrittenKey == null) ? 0 : dataFile.getFilePointer();
     }
 
-    private void afterAppend(DecoratedKey decoratedKey, long dataEnd, RowIndexEntry index)
+    private void afterAppend(DecoratedKey decoratedKey, long dataEnd, IndexedEntry index)
     {
         sstableMetadataCollector.addKey(decoratedKey.getKey());
         lastWrittenKey = decoratedKey;
@@ -184,10 +187,10 @@ public class SSTableWriter extends SSTable
      * @param row
      * @return null if the row was compacted away entirely; otherwise, the PK index entry for this row
      */
-    public RowIndexEntry append(AbstractCompactedRow row)
+    public IndexedEntry append(AbstractCompactedRow row)
     {
         long startPosition = beforeAppend(row.key);
-        RowIndexEntry entry;
+        IndexedEntry entry;
         try
         {
             entry = row.write(startPosition, dataFile.stream);
@@ -220,7 +223,7 @@ public class SSTableWriter extends SSTable
         long endPosition;
         try
         {
-            RowIndexEntry entry = rawAppend(cf, startPosition, decoratedKey, dataFile.stream);
+            IndexedEntry entry = rawAppend(cf, startPosition, decoratedKey, dataFile.stream);
             endPosition = dataFile.getFilePointer();
             afterAppend(decoratedKey, endPosition, entry);
         }
@@ -242,7 +245,7 @@ public class SSTableWriter extends SSTable
         }
     }
 
-    public static RowIndexEntry rawAppend(ColumnFamily cf, long startPosition, DecoratedKey key, DataOutputPlus out) throws IOException
+    public static IndexedEntry rawAppend(ColumnFamily cf, long startPosition, DecoratedKey key, DataOutputPlus out) throws IOException
     {
         assert cf.hasColumns() || cf.isMarkedForDelete();
 
@@ -250,7 +253,7 @@ public class SSTableWriter extends SSTable
         ColumnIndex index = builder.build(cf);
 
         out.writeShort(END_OF_ROW);
-        return RowIndexEntry.create(startPosition, cf.deletionInfo().getTopLevelDeletion(), index);
+        return IndexedEntryFactory.create(startPosition, cf.deletionInfo().getTopLevelDeletion(), index);
     }
 
     /**
@@ -339,7 +342,7 @@ public class SSTableWriter extends SSTable
                                 .updateMinColumnNames(minColumnNames)
                                 .updateMaxColumnNames(maxColumnNames)
                                 .updateHasLegacyCounterShards(hasLegacyCounterShards);
-        afterAppend(key, currentPosition, RowIndexEntry.create(currentPosition, cf.deletionInfo().getTopLevelDeletion(), columnIndexer.build()));
+        afterAppend(key, currentPosition, IndexedEntryFactory.create(currentPosition, cf.deletionInfo().getTopLevelDeletion(), columnIndexer.build()));
         return currentPosition;
     }
 
@@ -482,6 +485,8 @@ public class SSTableWriter extends SSTable
             iwriter.summary.close();
             // try to save the summaries to disk
             sstable.saveSummary(iwriter.builder, dbuilder);
+            // note: no need to close the index file in the iwriter, as the index
+            // file has already been closed at this point by IndexWriter#close()
             iwriter = null;
             dbuilder = null;
         }
@@ -578,15 +583,14 @@ public class SSTableWriter extends SSTable
      */
     class IndexWriter
     {
-        private final SequentialWriter indexFile;
+        private final PageAlignedWriter indexFile;
         public final SegmentedFile.Builder builder;
         public final IndexSummaryBuilder summary;
         public final IFilter bf;
-        private FileMark mark;
 
         IndexWriter(long keyCount, final SequentialWriter dataFile)
         {
-            indexFile = SequentialWriter.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
+            indexFile = PageAlignedWriter.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode());
             summary = new IndexSummaryBuilder(keyCount, metadata.getMinIndexInterval(), Downsampling.BASE_SAMPLING_LEVEL);
             bf = FilterFactory.getFilter(keyCount, metadata.getBloomFilterFpChance(), true);
@@ -613,32 +617,34 @@ public class SSTableWriter extends SSTable
             return summary.getLastReadableBoundary();
         }
 
-        public void append(DecoratedKey key, RowIndexEntry indexEntry, long dataEnd)
+        public void append(DecoratedKey key, IndexedEntry indexEntry, long dataEnd)
         {
             bf.add(key.getKey());
-            long indexStart = indexFile.getFilePointer();
             try
             {
+                long indexStart = indexFile.getFilePointer();
+                indexFile.startNewSegment();
+                indexFile.startNewNonPageAlignedSubSegment();
                 ByteBufferUtil.writeWithShortLength(key.getKey(), indexFile.stream);
-                metadata.comparator.rowIndexEntrySerializer().serialize(indexEntry, indexFile.stream);
+                metadata.comparator.rowIndexEntrySerializer().serialize(indexEntry, indexFile);
+                long indexEnd = indexFile.getFilePointer();
+
+                if (logger.isTraceEnabled())
+                    logger.trace("wrote index entry: " + indexEntry + " at " + indexStart);
+
+                summary.maybeAddEntry(key, indexStart, indexEnd, dataEnd);
+                builder.addPotentialBoundary(indexStart);
             }
             catch (IOException e)
             {
                 throw new FSWriteError(e, indexFile.getPath());
             }
-            long indexEnd = indexFile.getFilePointer();
-
-            if (logger.isTraceEnabled())
-                logger.trace("wrote index entry: " + indexEntry + " at " + indexStart);
-
-            summary.maybeAddEntry(key, indexStart, indexEnd, dataEnd);
-            builder.addPotentialBoundary(indexStart);
         }
 
         public void abort()
         {
             summary.close();
-            indexFile.abort();
+            indexFile.abort(); // todo kjkj: what is the 'abort' behavior for birch
             bf.close();
         }
 
@@ -666,15 +672,12 @@ public class SSTableWriter extends SSTable
                 }
             }
 
-            // index
-            long position = indexFile.getFilePointer();
             indexFile.close(); // calls force
-            FileUtils.truncate(indexFile.getPath(), position);
         }
 
-        public void mark()
+        public FileMark mark() throws IOException
         {
-            mark = indexFile.mark();
+            return indexFile.mark();
         }
 
         public void resetAndTruncate()
@@ -682,7 +685,7 @@ public class SSTableWriter extends SSTable
             // we can't un-set the bloom filter addition, but extra keys in there are harmless.
             // we can't reset dbuilder either, but that is the last thing called in afterappend so
             // we assume that if that worked then we won't be trying to reset.
-            indexFile.resetAndTruncate(mark);
+            //indexFile.resetAndTruncate(mark); // todo kjkj: I believe this can be removed entirely now
         }
 
         @Override

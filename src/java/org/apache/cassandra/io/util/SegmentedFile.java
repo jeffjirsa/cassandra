@@ -23,7 +23,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.MappedByteBuffer;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
 
 import com.google.common.util.concurrent.RateLimiter;
@@ -52,7 +51,7 @@ public abstract class SegmentedFile extends SharedCloseableImpl
     public final long length;
 
     // This differs from length for compressed files (but we still need length for
-    // SegmentIterator because offsets in the file are relative to the uncompressed size)
+    // LegacySegmentIterator because offsets in the file are relative to the uncompressed size)
     public final long onDiskLength;
 
     /**
@@ -71,7 +70,7 @@ public abstract class SegmentedFile extends SharedCloseableImpl
         this.onDiskLength = onDiskLength;
     }
 
-    public SegmentedFile(SegmentedFile copy)
+    protected SegmentedFile(SegmentedFile copy)
     {
         super(copy);
         path = copy.path;
@@ -123,9 +122,9 @@ public abstract class SegmentedFile extends SharedCloseableImpl
      */
     public static Builder getBuilder(Config.DiskAccessMode mode)
     {
-        return mode == Config.DiskAccessMode.mmap
-               ? new MmappedSegmentedFile.Builder()
-               : new BufferedPoolingSegmentedFile.Builder();
+        return mode == Config.DiskAccessMode.mmap_cache_aligned
+            ? new PageAlignedAwareSegmentedFile.Builder()
+            : new BufferedPoolingSegmentedFile.Builder();
     }
 
     public static Builder getCompressedBuilder()
@@ -139,11 +138,18 @@ public abstract class SegmentedFile extends SharedCloseableImpl
     }
 
     /**
-     * @return An Iterator over segments, beginning with the segment containing the given position: each segment must be closed after use.
+     * Gets a new instance of a SegmentIterator implementation to iterate over segments.
+     * The first segment to be returned will be the segment that contains the given position.
+     * <p>
+     * It is the callers responsibility to close each segment after use.
+     *
+     * @param position the position in the index of the first segment to start the iterator at
+     * @return a SegmentIterator starting at the provided position to iterate segments
+     *
      */
-    public Iterator<FileDataInput> iterator(long position)
+    public SegmentIterator indexIterator(long position)
     {
-        return new SegmentIterator(position);
+        return new LegacySegmentIterator(position);
     }
 
     /**
@@ -204,33 +210,37 @@ public abstract class SegmentedFile extends SharedCloseableImpl
         }
     }
 
+    public abstract class SegmentIterator implements Iterator<FileDataInput>, AutoCloseable
+    {
+    }
+
     /**
      * A lazy Iterator over segments in forward order from the given position.  It is caller's responsibility
      * to close the FileDataIntputs when finished.
      */
-    final class SegmentIterator implements Iterator<FileDataInput>
+    public final class LegacySegmentIterator extends SegmentIterator
     {
-        private long nextpos;
-        public SegmentIterator(long position)
+        public long position;
+
+        private LegacySegmentIterator(long position)
         {
-            this.nextpos = position;
+            this.position = position;
         }
 
         public boolean hasNext()
         {
-            return nextpos < length;
+            return position < length;
         }
 
         public FileDataInput next()
         {
-            long position = nextpos;
             if (position >= length)
                 throw new NoSuchElementException();
 
-            FileDataInput segment = getSegment(nextpos);
+            FileDataInput segment = getSegment(position);
             try
             {
-                nextpos = nextpos + segment.bytesRemaining();
+                position = position + segment.bytesRemaining();
             }
             catch (IOException e)
             {
@@ -239,13 +249,20 @@ public abstract class SegmentedFile extends SharedCloseableImpl
             return segment;
         }
 
-        public void remove() { throw new UnsupportedOperationException(); }
+        public void remove()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close()
+        {
+        }
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(path='" + path + "'" +
-               ", length=" + length +
-               ")";
+        return getClass().getSimpleName() + "(path='" + path + '\'' +
+               ", length=" + length + ')';
 }
 }

@@ -23,7 +23,9 @@ import java.io.IOException;
 import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.IndexedEntry;
+import org.apache.cassandra.db.index.birch.PageAlignedReader;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -31,23 +33,73 @@ import org.apache.cassandra.utils.CloseableIterator;
 
 public class KeyIterator extends AbstractIterator<DecoratedKey> implements CloseableIterator<DecoratedKey>
 {
-    private final RandomAccessReader in;
+    private final Descriptor desc;
+    private final FileDataInput in;
+
+    private boolean hasIteratedOnce;
 
     public KeyIterator(Descriptor desc)
     {
+        this.desc = desc;
         File path = new File(desc.filenameFor(Component.PRIMARY_INDEX));
-        in = RandomAccessReader.open(path);
+        if (desc.version.hasBirchIndexes)
+        {
+            try
+            {
+                PageAlignedReader reader = new PageAlignedReader(path);
+                // todo: kjkj is this the right thing to do?
+                reader.setSegment(0);
+                in = reader;
+                hasIteratedOnce = false;
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+        else
+        {
+            in = RandomAccessReader.open(path);
+        }
     }
 
     protected DecoratedKey computeNext()
     {
         try
         {
-            if (in.isEOF())
-                return endOfData();
-            DecoratedKey key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
-            RowIndexEntry.Serializer.skip(in); // skip remainder of the entry
-            return key;
+            if (desc.version.hasBirchIndexes)
+            {
+                PageAlignedReader reader = (PageAlignedReader) in;
+
+                if (reader.hasNextSegment())
+                {
+                    if (hasIteratedOnce)
+                        reader.nextSegment();
+                }
+                else
+                {
+                    // if a file has only one segment, we need to iterate
+                    // at least once to return the only valid segment before
+                    // returning endOfData()
+                    if (hasIteratedOnce)
+                        return endOfData();
+                    else
+                        hasIteratedOnce = true;
+                }
+
+                reader.seekToStartOfCurrentSubSegment();
+
+                hasIteratedOnce = true;
+                return StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
+            }
+            else
+            {
+                if (in.isEOF())
+                    return endOfData();
+                DecoratedKey key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
+                IndexedEntry.Serializer.skip(in, desc.version); // skip remainder of the entry
+                return key;
+            }
         }
         catch (IOException e)
         {
@@ -57,16 +109,34 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
 
     public void close()
     {
-        in.close();
+        try
+        {
+            in.close();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     public long getBytesRead()
     {
-        return in.getFilePointer();
+        // todo: kjkj... how should this actually be calculated with new design? this seems broken even in current design
+        if (!desc.version.hasBirchIndexes)
+            return in.getFilePointer();
+        else
+            return 1L;
     }
 
     public long getTotalBytes()
     {
-        return in.length();
+        if (!desc.version.hasBirchIndexes)
+        {
+            return ((RandomAccessReader) in).length();
+        }
+        else
+        {
+            return 0; // todo: what size do we return for birch entries?
+        }
     }
 }

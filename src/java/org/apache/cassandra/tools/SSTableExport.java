@@ -285,11 +285,11 @@ public class SSTableExport
 
                 lastKey = decoratedKey;
 
-                RowIndexEntry entry = sstable.getPosition(decoratedKey, SSTableReader.Operator.EQ);
+                IndexedEntry entry = sstable.getPosition(decoratedKey, SSTableReader.Operator.EQ);
                 if (entry == null)
                     continue;
 
-                dfile.seek(entry.position);
+                dfile.seek(entry.getPosition());
                 ByteBufferUtil.readWithShortLength(dfile); // row key
                 DeletionInfo deletionInfo = new DeletionInfo(DeletionTime.serializer.deserialize(dfile));
 

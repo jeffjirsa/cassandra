@@ -28,11 +28,9 @@ import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
-import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
-import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -291,6 +289,10 @@ public class CollationController
                     sstable.incrementReadCount();
                     OnDiskAtomIterator iter = filter.getSSTableColumnIterator(sstable);
                     ColumnFamily cf = iter.getColumnFamily();
+
+                    if (!sstable.descriptor.version.hasBirchIndexes)
+                        FileUtils.closeQuietly(iter);
+
                     // we are only interested in row-level tombstones here, and only if markedForDeleteAt is larger than minTimestamp
                     if (cf != null && cf.deletionInfo().getTopLevelDeletion().markedForDeleteAt > minTimestamp)
                     {
@@ -321,8 +323,16 @@ public class CollationController
         finally
         {
             for (Object iter : iterators)
+            {
                 if (iter instanceof Closeable)
+                {
                     FileUtils.closeQuietly((Closeable) iter);
+                }
+                else if (iter instanceof AutoCloseable)
+                {
+                    FileUtils.closeQuietly((AutoCloseable) iter);
+                }
+            }
         }
     }
 

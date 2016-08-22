@@ -23,15 +23,14 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 
 import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.IndexedEntry;
 import org.apache.cassandra.db.RangeTombstone;
-import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.filter.ColumnSlice;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
-
-import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
+import org.apache.cassandra.io.sstable.IndexInfo;
 
 /**
  * A type for a Composite.
@@ -135,10 +134,11 @@ public interface CType extends Comparator<Composite>
     public IVersionedSerializer<SliceQueryFilter> sliceQueryFilterSerializer();
     public DeletionInfo.Serializer deletionInfoSerializer();
     public RangeTombstone.Serializer rangeTombstoneSerializer();
-    public RowIndexEntry.Serializer rowIndexEntrySerializer();
+    public IndexedEntry.Serializer rowIndexEntrySerializer();
 
     public interface Serializer extends ISerializer<Composite>
     {
-        public void skip(DataInput in) throws IOException;
+        Composite deserialize(ByteBuffer in) throws IOException;
+        void skip(DataInput in) throws IOException;
     }
 }

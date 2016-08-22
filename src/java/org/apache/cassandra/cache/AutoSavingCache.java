@@ -73,8 +73,11 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
      *
      * Since cache versions match exactly and there is no partial fallback just add
      * a minor version letter.
+     *
+     * ba (2.1.15)
+     * bb (2.1.16): Compatible with Birch Indexes
      */
-    private static final String CURRENT_VERSION = "ba";
+    private static final String CURRENT_VERSION = "bb";
 
     private static volatile IStreamFactory streamFactory = new IStreamFactory()
     {

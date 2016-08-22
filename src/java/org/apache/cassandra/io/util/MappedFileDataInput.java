@@ -96,6 +96,11 @@ public class MappedFileDataInput extends AbstractDataInput implements FileDataIn
         return position == buffer.capacity();
     }
 
+    public boolean isCurrentSegmentExausted() throws IOException
+    {
+        return isEOF();
+    }
+
     public long bytesRemaining() throws IOException
     {
         return buffer.capacity() - position;

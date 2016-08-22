@@ -45,7 +45,7 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
     private final ColumnFamily emptyColumnFamily;
     private final Iterator<OnDiskAtom> atomIterator;
 
-    public SimpleSliceReader(SSTableReader sstable, RowIndexEntry indexEntry, FileDataInput input, Composite finishColumn)
+    public SimpleSliceReader(SSTableReader sstable, IndexedEntry indexEntry, FileDataInput input, Composite finishColumn)
     {
         Tracing.trace("Seeking to partition beginning in data file");
         this.finishColumn = finishColumn;
@@ -54,13 +54,13 @@ class SimpleSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAt
         {
             if (input == null)
             {
-                this.file = sstable.getFileDataInput(indexEntry.position);
+                this.file = sstable.getFileDataInput(indexEntry.getPosition());
                 this.needsClosing = true;
             }
             else
             {
                 this.file = input;
-                input.seek(indexEntry.position);
+                input.seek(indexEntry.getPosition());
                 this.needsClosing = false;
             }
 

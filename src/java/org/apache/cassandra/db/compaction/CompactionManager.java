@@ -840,7 +840,7 @@ public class CompactionManager implements CompactionManagerMBean
                 if (row == null)
                     continue;
                 AbstractCompactedRow compactedRow = new LazilyCompactedRow(controller, Collections.singletonList(row));
-                if (writer.append(compactedRow) != null)
+                if (writer.append(compactedRow))
                     totalkeysWritten++;
             }
 

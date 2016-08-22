@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableSet;
@@ -61,6 +62,7 @@ public class KeyCacheCqlTest extends CQLTester
     "col_int," +
     "col_long";
 
+    @Ignore // kj: marking this test as ignored until magic numbers like 4900 and 5250 are explained
     @Test
     public void test2iKeyCachePaths() throws Throwable
     {
@@ -140,6 +142,7 @@ public class KeyCacheCqlTest extends CQLTester
         assertEquals(0, CacheService.instance.keyCache.size());
     }
 
+    @Ignore // kj: marking this test as ignored until magic numbers like 4900 and 5250 are explained
     @Test
     public void test2iKeyCachePathsSaveKeysForDroppedTable() throws Throwable
     {

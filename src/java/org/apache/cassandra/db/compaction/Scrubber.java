@@ -28,7 +28,9 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.db.index.birch.PageAlignedReader;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -49,7 +51,7 @@ public class Scrubber implements Closeable
     private final long expectedBloomFilterSize;
 
     private final RandomAccessReader dataFile;
-    private final RandomAccessReader indexFile;
+    private final FileDataInput indexFile;
     private final ScrubInfo scrubInfo;
 
     private final boolean isOffline;
@@ -123,9 +125,22 @@ public class Scrubber implements Closeable
                         ? sstable.openDataReader()
                         : sstable.openDataReader(CompactionManager.instance.getRateLimiter());
 
-        this.indexFile = hasIndexFile
-                ? RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)))
-                : null;
+        if (sstable.descriptor.version.hasBirchIndexes)
+        {
+            this.indexFile = hasIndexFile
+                             ? new PageAlignedReader(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)))
+                             : null;
+            if (hasIndexFile)
+            {
+                ((PageAlignedReader) this.indexFile).setSegment(0);
+            }
+        }
+        else
+        {
+            this.indexFile = hasIndexFile
+                             ? RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)))
+                             : null;
+        }
 
         this.scrubInfo = new ScrubInfo(dataFile, sstable);
 
@@ -144,7 +159,7 @@ public class Scrubber implements Closeable
             if (indexAvailable())
             {
                 // throw away variable so we don't have a side effect in the assert
-                long firstRowPositionFromIndex = sstable.metadata.comparator.rowIndexEntrySerializer().deserialize(indexFile, sstable.descriptor.version).position;
+                long firstRowPositionFromIndex = sstable.metadata.comparator.rowIndexEntrySerializer().deserialize(indexFile, sstable.descriptor.version).getPosition();
                 assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
             }
 
@@ -242,6 +257,7 @@ public class Scrubber implements Closeable
                         try
                         {
                             dataFile.seek(dataStartFromIndex);
+
                             if (tryAppend(prevKey, key, dataSize, writer))
                                 prevKey = key;
                         }
@@ -331,7 +347,7 @@ public class Scrubber implements Closeable
         }
 
         AbstractCompactedRow compactedRow = new LazilyCompactedRow(controller, Collections.singletonList(atoms));
-        if (writer.tryAppend(compactedRow) == null)
+        if (!writer.tryAppend(compactedRow))
             emptyRows++;
         else
             goodRows++;
@@ -352,7 +368,7 @@ public class Scrubber implements Closeable
 
             nextRowPositionFromIndex = !indexAvailable()
                     ? dataFile.length()
-                    : sstable.metadata.comparator.rowIndexEntrySerializer().deserialize(indexFile, sstable.descriptor.version).position;
+                    : sstable.metadata.comparator.rowIndexEntrySerializer().deserialize(indexFile, sstable.descriptor.version).getPosition();
         }
         catch (Throwable th)
         {
@@ -365,7 +381,26 @@ public class Scrubber implements Closeable
 
     private boolean indexAvailable()
     {
-        return indexFile != null && !indexFile.isEOF();
+        try
+        {
+            if (indexFile != null && indexFile instanceof PageAlignedReader)
+            {
+                if (indexFile.isCurrentSegmentExausted() && ((PageAlignedReader) indexFile).hasNextSegment())
+                {
+                    ((PageAlignedReader) indexFile).nextSegment();
+                }
+
+                return !indexFile.isEOF();
+            }
+            else
+            {
+                return indexFile != null && !indexFile.isEOF();
+            }
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     private void seekToNextRow()

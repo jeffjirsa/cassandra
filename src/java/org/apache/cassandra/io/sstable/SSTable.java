@@ -32,9 +32,12 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.IndexedEntry;
+import org.apache.cassandra.db.index.birch.AlignedSegment;
+import org.apache.cassandra.db.index.birch.PageAlignedReader;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -210,21 +213,31 @@ public abstract class SSTable
     }
 
     /** @return An estimate of the number of keys contained in the given index file. */
-    long estimateRowsFromIndex(RandomAccessReader ifile) throws IOException
+    long estimateRowsFromIndex(FileDataInput ifile) throws IOException
     {
-        // collect sizes for the first 10000 keys, or first 10 megabytes of data
-        final int SAMPLES_CAP = 10000, BYTES_CAP = (int)Math.min(10000000, ifile.length());
-        int keys = 0;
-        while (ifile.getFilePointer() < BYTES_CAP && keys < SAMPLES_CAP)
+        if (ifile instanceof PageAlignedReader)
         {
-            ByteBufferUtil.skipShortLength(ifile);
-            RowIndexEntry.Serializer.skip(ifile);
-            keys++;
+            int keys = ((PageAlignedReader) ifile).numberOfSegments();
+            // todo: kjkj this used to be limited... collect sizes for the first 10000 keys, or first 10 megabytes of data
+            //final int SAMPLES_CAP = 10000, BYTES_CAP = (int)Math.min(10000000, ifile.length());
+            return keys;
         }
-        assert keys > 0 && ifile.getFilePointer() > 0 && ifile.length() > 0 : "Unexpected empty index file: " + ifile;
-        long estimatedRows = ifile.length() / (ifile.getFilePointer() / keys);
-        ifile.seek(0);
-        return estimatedRows;
+        else
+        {
+            // collect sizes for the first 10000 keys, or first 10 megabytes of data
+            final int SAMPLES_CAP = 10000, BYTES_CAP = (int)Math.min(10000000, ((RandomAccessReader) ifile).length());
+            int keys = 0;
+            while (ifile.getFilePointer() < BYTES_CAP && keys < SAMPLES_CAP)
+            {
+                ByteBufferUtil.skipShortLength(ifile);
+                IndexedEntry.Serializer.skip(ifile, descriptor.version);
+                keys++;
+            }
+            assert keys > 0 && ifile.getFilePointer() > 0 && ((RandomAccessReader) ifile).length() > 0 : "Unexpected empty index file: " + ifile;
+            long estimatedRows = ((RandomAccessReader) ifile).length() / (ifile.getFilePointer() / keys);
+            ifile.seek(0);
+            return estimatedRows;
+        }
     }
 
     public long bytesOnDisk()

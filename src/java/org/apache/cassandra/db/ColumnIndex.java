@@ -24,18 +24,19 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnIndex
 {
-    public final List<IndexHelper.IndexInfo> columnsIndex;
+    public final List<IndexInfo> columnsIndex;
 
-    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList());
+    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexInfo>emptyList());
 
-    private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex)
+    private ColumnIndex(List<IndexInfo> columnsIndex)
     {
         assert columnsIndex != null;
 
@@ -67,6 +68,7 @@ public class ColumnIndex
         private int atomCount;
         private final ByteBuffer key;
         private final DeletionInfo deletionInfo; // only used for serializing and calculating row header size
+        private final CType cType;
 
         private final OnDiskAtom.SerializerForWriting atomSerializer;
 
@@ -87,9 +89,10 @@ public class ColumnIndex
             assert output != null;
 
             this.key = key;
-            deletionInfo = cf.deletionInfo();
+            this.deletionInfo = cf.deletionInfo();
+            this.cType = cf.metadata().comparator;
             this.indexOffset = rowHeaderSize(key, deletionInfo);
-            this.result = new ColumnIndex(new ArrayList<IndexHelper.IndexInfo>());
+            this.result = new ColumnIndex(new ArrayList<IndexInfo>());
             this.output = output;
             this.tombstoneTracker = new RangeTombstone.Tracker(cf.getComparator());
             this.atomSerializer = serializer;
@@ -212,7 +215,7 @@ public class ColumnIndex
             // if we hit the column index size that we have to index after, go ahead and index it.
             if (blockSize >= DatabaseDescriptor.getColumnIndexSize())
             {
-                IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstColumn.name(), column.name(), indexOffset + startPosition, endPosition - startPosition);
+                IndexInfo cIndexInfo = new IndexInfo(firstColumn.name(), column.name(), indexOffset + startPosition, endPosition - startPosition, cType);
                 result.columnsIndex.add(cIndexInfo);
                 firstColumn = null;
                 lastBlockClosing = column;
@@ -245,7 +248,7 @@ public class ColumnIndex
             // the last column may have fallen on an index boundary already.  if not, index it explicitly.
             if (result.columnsIndex.isEmpty() || lastBlockClosing != lastColumn)
             {
-                IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstColumn.name(), lastColumn.name(), indexOffset + startPosition, endPosition - startPosition);
+                IndexInfo cIndexInfo = new IndexInfo(firstColumn.name(), lastColumn.name(), indexOffset + startPosition, endPosition - startPosition, cType);
                 result.columnsIndex.add(cIndexInfo);
             }
 

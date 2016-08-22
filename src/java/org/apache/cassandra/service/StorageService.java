@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
+import java.io.DataOutput;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;

@@ -421,8 +421,8 @@ public class KeyspaceTest extends SchemaLoader
         }
         // verify that we do indeed have multiple index entries
         SSTableReader sstable = cfStore.getSSTables().iterator().next();
-        RowIndexEntry indexEntry = sstable.getPosition(key, SSTableReader.Operator.EQ);
-        assert indexEntry.columnsIndex().size() > 2;
+        IndexedEntry indexEntry = sstable.getPosition(key, SSTableReader.Operator.EQ);
+        assert indexEntry.entryCount() > 2;
 
         validateSliceLarge(cfStore);
     }

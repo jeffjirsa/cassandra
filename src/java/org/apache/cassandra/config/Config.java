@@ -231,6 +231,9 @@ public class Config
 
     public int gc_warn_threshold_in_ms = 0;
 
+    // the size to pad an aligned index segment to
+    public int sstable_index_segment_padding_in_kb = 4096;
+
     private static final CsvPreference STANDARD_SURROUNDING_SPACES_NEED_QUOTES = new CsvPreference.Builder(CsvPreference.STANDARD_PREFERENCE)
                                                                                                   .surroundingSpacesNeedQuotes(true).build();
 
@@ -318,6 +321,7 @@ public class Config
         mmap,
         mmap_index_only,
         standard,
+        mmap_cache_aligned,
     }
 
     public static enum MemtableAllocationType

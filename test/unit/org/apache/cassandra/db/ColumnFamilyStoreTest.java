@@ -2164,7 +2164,7 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         assertSame("unexpected number of rows ", 1, rows.size());
         Row row = rows.get(0);
         Collection<Cell> cols = !filter.isReversed() ? row.cf.getSortedColumns() : row.cf.getReverseSortedColumns();
-        // printRow(cfs, new String(row.key.key.array()), cols);
+        //printRow(cfs, new String(row.key.getKey().array()), cols);
         String[] returnedColsNames = Iterables.toArray(Iterables.transform(cols, new Function<Cell, String>()
         {
             public String apply(Cell arg0)

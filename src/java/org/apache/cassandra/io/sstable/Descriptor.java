@@ -47,7 +47,7 @@ public class Descriptor
     public static class Version
     {
         // This needs to be at the begining for initialization sake
-        public static final String current_version = "ka";
+        public static final String current_version = "kb";
 
         // ja (2.0.0): super columns are serialized as composites (note that there is no real format change,
         //               this is mostly a marker to know if we should expect super columns or not. We do need
@@ -63,6 +63,7 @@ public class Descriptor
         //             index summaries can be downsampled and the sampling level is persisted
         //             switch uncompressed checksums to adler32
         //             tracks presense of legacy (local and remote) counter shards
+        // kb (2.1.16): birch (b+tree-ish) based indexes
 
         public static final Version CURRENT = new Version(current_version);
 
@@ -75,6 +76,7 @@ public class Descriptor
         public final boolean hasAllAdlerChecksums;
         public final boolean hasRepairedAt;
         public final boolean tracksLegacyCounterShards;
+        public final boolean hasBirchIndexes;
 
         public Version(String version)
         {
@@ -86,6 +88,7 @@ public class Descriptor
             hasAllAdlerChecksums = version.compareTo("ka") >= 0;
             hasRepairedAt = version.compareTo("ka") >= 0;
             tracksLegacyCounterShards = version.compareTo("ka") >= 0;
+            hasBirchIndexes = version.compareTo("kb") >= 0;
         }
 
         /**

@@ -166,7 +166,7 @@ public abstract class AbstractTracingAwareExecutorService implements TracingAwar
             catch (Throwable t)
             {
                 JVMStabilityInspector.inspectThrowable(t);
-                logger.warn("Uncaught exception on thread {}: {}", Thread.currentThread(), t);
+                logger.warn("Uncaught exception on thread {}: {}", Thread.currentThread(), t, t);
                 result = t;
                 failure = true;
             }

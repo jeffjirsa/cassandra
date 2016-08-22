@@ -18,12 +18,11 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.Closeable;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.security.MessageDigest;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.IndexedEntry;
 import org.apache.cassandra.io.sstable.ColumnStats;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -48,7 +47,7 @@ public abstract class AbstractCompactedRow implements Closeable
      *
      * @return index information for the written row, or null if the compaction resulted in only expired tombstones.
      */
-    public abstract RowIndexEntry write(long currentPosition, DataOutputPlus out) throws IOException;
+    public abstract IndexedEntry write(long currentPosition, DataOutputPlus out) throws IOException;
 
     /**
      * update @param digest with the data bytes of the row (not including row key or row size).

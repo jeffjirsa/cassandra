@@ -44,7 +44,6 @@ import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 public class CompactionTask extends AbstractCompactionTask
@@ -194,7 +193,7 @@ public class CompactionTask extends AbstractCompactionTask
                             throw new CompactionInterruptedException(ci.getCompactionInfo());
 
                         AbstractCompactedRow row = iter.next();
-                        if (writer.append(row) != null)
+                        if (writer.append(row))
                         {
                             totalKeysWritten++;
                             if (newSSTableSegmentThresholdReached(writer.currentWriter()))

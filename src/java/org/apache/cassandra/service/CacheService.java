@@ -80,7 +80,7 @@ public class CacheService implements CacheServiceMBean
 
     public final static CacheService instance = new CacheService();
 
-    public final AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache;
+    public final AutoSavingCache<KeyCacheKey, IndexedEntry> keyCache;
     public final AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache;
     public final AutoSavingCache<CounterCacheKey, ClockAndCount> counterCache;
 
@@ -105,7 +105,7 @@ public class CacheService implements CacheServiceMBean
     /**
      * @return auto saving cache object
      */
-    private AutoSavingCache<KeyCacheKey, RowIndexEntry> initKeyCache()
+    private AutoSavingCache<KeyCacheKey, IndexedEntry> initKeyCache()
     {
         logger.info("Initializing key cache with capacity of {} MBs.", DatabaseDescriptor.getKeyCacheSizeInMB());
 
@@ -113,9 +113,9 @@ public class CacheService implements CacheServiceMBean
 
         // as values are constant size we can use singleton weigher
         // where 48 = 40 bytes (average size of the key) + 8 bytes (size of value)
-        ICache<KeyCacheKey, RowIndexEntry> kc;
+        ICache<KeyCacheKey, IndexedEntry> kc;
         kc = ConcurrentLinkedHashCache.create(keyCacheInMemoryCapacity);
-        AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = new AutoSavingCache<>(kc, CacheType.KEY_CACHE, new KeyCacheSerializer());
+        AutoSavingCache<KeyCacheKey, IndexedEntry> keyCache = new AutoSavingCache<>(kc, CacheType.KEY_CACHE, new KeyCacheSerializer());
 
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();
 
@@ -475,22 +475,28 @@ public class CacheService implements CacheServiceMBean
         }
     }
 
-    public static class KeyCacheSerializer implements CacheSerializer<KeyCacheKey, RowIndexEntry>
+    public static class KeyCacheSerializer implements CacheSerializer<KeyCacheKey, IndexedEntry>
     {
         public void serialize(KeyCacheKey key, DataOutputPlus out, ColumnFamilyStore cfs) throws IOException
         {
-            RowIndexEntry entry = CacheService.instance.keyCache.getInternal(key);
-            if (entry == null)
+            IndexedEntry entry = CacheService.instance.keyCache.getInternal(key);
+            if (entry == null || entry instanceof BirchIndexedEntry)
                 return;
 
             out.write(cfs.metadata.ksAndCFBytes);
             ByteBufferUtil.writeWithLength(key.key, out);
             out.writeInt(key.desc.generation);
             out.writeBoolean(true);
-            cfs.metadata.comparator.rowIndexEntrySerializer().serialize(entry, out);
+            //todo: kjkj -- what's the best option here?.. for now create a "legacySerialize()" method
+            //that takes a DataOutputPlus and serializes non Birch IndexedEntries in the old format *just*
+            //for the purposes of the cache. With the Birch format we don't use the on heap cache, however,
+            //we still need it for legacy reasons during upgrade (for sstables in the old index format)
+            //and I believe we will still want to cache "non"-indexed entries even after legacy support
+            //is no longer necessary..
+            cfs.metadata.comparator.rowIndexEntrySerializer().legacySerialize(entry, out);
         }
 
-        public Future<Pair<KeyCacheKey, RowIndexEntry>> deserialize(DataInputStream input, ColumnFamilyStore cfs) throws IOException
+        public Future<Pair<KeyCacheKey, IndexedEntry>> deserialize(DataInputStream input, ColumnFamilyStore cfs) throws IOException
         {
             //Keyspace and CF name are deserialized by AutoSaving cache and used to fetch the CFS provided as a
             //parameter so they aren't deserialized here, even though they are serialized by this serializer
@@ -506,10 +512,12 @@ public class CacheService implements CacheServiceMBean
             SSTableReader reader = null;
             if (cfs == null || !cfs.isKeyCacheEnabled() || (reader = findDesc(generation, cfs.getSSTables())) == null)
             {
-                RowIndexEntry.Serializer.skip(input);
+                // todo kjkj
+                Descriptor.Version version = (reader != null) ? reader.descriptor.version : new Descriptor.Version("kb");
+                IndexedEntry.Serializer.skip(input, version);
                 return null;
             }
-            RowIndexEntry entry = reader.metadata.comparator.rowIndexEntrySerializer().deserialize(input, reader.descriptor.version);
+            IndexedEntry entry = reader.metadata.comparator.rowIndexEntrySerializer().deserialize(input, reader.descriptor.version);
             return Futures.immediateFuture(Pair.create(new KeyCacheKey(cfs.metadata.ksAndCFName, reader.descriptor, key), entry));
         }
 

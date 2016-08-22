@@ -216,6 +216,19 @@ public final class FileUtils
         }
     }
 
+    public static void closeQuietly(AutoCloseable c)
+    {
+        try
+        {
+            if (c != null)
+                c.close();
+        }
+        catch (Exception e)
+        {
+            logger.warn("Failed closing {}", c, e);
+        }
+    }
+
     public static void closeQuietly(Closeable c)
     {
         try
