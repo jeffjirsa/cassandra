@@ -3,6 +3,7 @@
    an IN clause with duplicate keys by treating the IN values as a set instead
    of a list (CASSANDRA-12420)
  * Add system property to set the max number of native transport requests in queue (CASSANDRA-11363)
+ * OutboundTcpConnection catch Throwable instead of Exception (CASSANDRA-12633)
  * Include column family parameter when -st and -et are provided (CASSANDRA-11866)
  * Fix queries with empty ByteBuffer values in clustering column restrictions (CASSANDRA-12127) 
  * Disable passing control to post-flush after flush failure to prevent data loss (CASSANDRA-11828)
