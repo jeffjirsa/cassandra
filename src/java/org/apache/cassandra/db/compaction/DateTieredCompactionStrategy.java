@@ -78,7 +78,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
 
             LifecycleTransaction modifier = cfs.getTracker().tryModify(latestBucket, OperationType.COMPACTION);
             if (modifier != null)
-                return new CompactionTask(cfs, modifier, gcBefore);
+                return new CompactionTask(cfs, modifier, gcBefore).withPriority(OperationType.COMPACTION.priority(), modifier.bytesOnDisk());
         }
     }
 
@@ -400,7 +400,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         LifecycleTransaction txn = cfs.getTracker().tryModify(filteredSSTables, OperationType.COMPACTION);
         if (txn == null)
             return null;
-        return Collections.<AbstractCompactionTask>singleton(new CompactionTask(cfs, txn, gcBefore));
+        return Collections.<AbstractCompactionTask>singleton(new CompactionTask(cfs, txn, gcBefore).withPriority(OperationType.COMPACTION.priority(), txn.bytesOnDisk()));
     }
 
     @Override
@@ -416,7 +416,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
             return null;
         }
 
-        return new CompactionTask(cfs, modifier, gcBefore).setUserDefined(true);
+        return new CompactionTask(cfs, modifier, gcBefore).withPriority(OperationType.USER_DEFINED_COMPACTION.priority(), modifier.bytesOnDisk()).setUserDefined(true);
     }
 
     public int getEstimatedRemainingTasks()

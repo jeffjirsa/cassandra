@@ -28,12 +28,15 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 
-public abstract class AbstractCompactionTask extends WrappedRunnable
+public abstract class AbstractCompactionTask extends WrappedRunnable implements  IPrioritizedCompactionComparable
 {
     protected final ColumnFamilyStore cfs;
     protected LifecycleTransaction transaction;
     protected boolean isUserDefined;
     protected OperationType compactionType;
+    protected int compactionTypePriority;
+    protected long compactionSubTypePriorty;
+    protected long taskTimestamp;
 
     /**
      * @param cfs
@@ -45,6 +48,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
         this.transaction = transaction;
         this.isUserDefined = false;
         this.compactionType = OperationType.COMPACTION;
+        this.taskTimestamp = System.currentTimeMillis();
         // enforce contract that caller should mark sstables compacting
         Set<SSTableReader> compacting = transaction.tracker.getCompacting();
         for (SSTableReader sstable : transaction.originals())
@@ -71,6 +75,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
             transaction.close();
         }
     }
+
     public abstract CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables);
 
     protected abstract int executeInternal(CompactionExecutorStatsCollector collector);
@@ -84,7 +89,37 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
     public AbstractCompactionTask setCompactionType(OperationType compactionType)
     {
         this.compactionType = compactionType;
+        this.compactionTypePriority = compactionType.priority();
+        this.compactionSubTypePriorty = 0L;
         return this;
+    }
+
+    public AbstractCompactionTask withPriority(int opTypePriority)
+    {
+        this.compactionTypePriority = opTypePriority;
+        return this;
+    }
+
+    public AbstractCompactionTask withPriority(int opTypePriority, long subPriority)
+    {
+        this.compactionTypePriority = opTypePriority;
+        this.compactionSubTypePriorty = subPriority;
+        return this;
+    }
+
+    public Integer getTypePriority()
+    {
+        return this.compactionTypePriority;
+    }
+
+    public Long getSubTypePriority()
+    {
+        return this.compactionSubTypePriorty;
+    }
+
+    public Long getTimestamp()
+    {
+        return this.taskTimestamp;
     }
 
     public String toString()

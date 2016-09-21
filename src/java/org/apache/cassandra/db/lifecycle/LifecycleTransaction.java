@@ -565,6 +565,19 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         LogTransaction.waitForDeletions();
     }
 
+    /**
+     * Expose the number of bytes involved in the transaction
+     */
+    public long bytesOnDisk()
+    {
+        long sum = 0;
+        for(SSTableReader r : originals)
+        {
+            sum += r.bytesOnDisk();
+        }
+        return sum;
+    }
+
     // a class representing the current state of the reader within this transaction, encoding the actions both logged
     // and pending, and the reader instances that are visible now, and will be after the next checkpoint (with null
     // indicating either obsolescence, or that the reader does not occur in the transaction; which is defined
