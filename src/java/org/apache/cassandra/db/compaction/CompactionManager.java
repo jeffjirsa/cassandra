@@ -233,26 +233,34 @@ public class CompactionManager implements CompactionManagerMBean
 
     // the actual sstables to compact are not determined until we run the BCT; that way, if new sstables
     // are created between task submission and execution, we execute against the most up-to-date information
-    class BackgroundCompactionCandidate implements Runnable
+    class BackgroundCompactionCandidate implements Runnable, IPrioritizedCompactionComparable
     {
         private final ColumnFamilyStore cfs;
         private int compactionTypePriority;
         private long compactionSubtypePriority;
+        private long taskTimestamp;
 
         BackgroundCompactionCandidate(ColumnFamilyStore cfs)
         {
             this.cfs = cfs;
+            this.taskTimestamp = System.currentTimeMillis();
             this.compactionTypePriority = OperationType.COMPACTION.priority();
+            this.compactionSubtypePriority = 0L;
         }
 
-        public int getTypePriority()
+        public Integer getTypePriority()
         {
             return this.compactionTypePriority;
         }
 
-        public long getSubTypePriority()
+        public Long getSubTypePriority()
         {
             return this.compactionSubtypePriority;
+        }
+
+        public Long getTimestamp()
+        {
+            return this.taskTimestamp;
         }
 
         public void run()
