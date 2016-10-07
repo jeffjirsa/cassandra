@@ -283,6 +283,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         private final CompactionInfo info;
         private long keysWritten;
         private final long keysEstimate;
+        private OperationType type;
 
         protected Writer(int keysToSave)
         {
@@ -298,7 +299,6 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 keysEstimate = keysToSave;
             }
 
-            OperationType type;
             if (cacheType == CacheService.CacheType.KEY_CACHE)
                 type = OperationType.KEY_CACHE_SAVE;
             else if (cacheType == CacheService.CacheType.ROW_CACHE)
@@ -427,6 +427,11 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             {
                 logger.warn("Could not list files in {}", savedCachesDir);
             }
+        }
+
+        public OperationType type()
+        {
+            return this.type;
         }
     }
 

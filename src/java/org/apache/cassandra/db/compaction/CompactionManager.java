@@ -237,13 +237,34 @@ public class CompactionManager implements CompactionManagerMBean
 
     // the actual sstables to compact are not determined until we run the BCT; that way, if new sstables
     // are created between task submission and execution, we execute against the most up-to-date information
-    class BackgroundCompactionCandidate implements Runnable
+    class BackgroundCompactionCandidate implements Runnable, IPrioritizedCompactionComparable
     {
         private final ColumnFamilyStore cfs;
+        private int compactionTypePriority;
+        private long compactionSubtypePriority;
+        private long taskTimestamp;
 
         BackgroundCompactionCandidate(ColumnFamilyStore cfs)
         {
             this.cfs = cfs;
+            this.taskTimestamp = System.currentTimeMillis();
+            this.compactionTypePriority = OperationType.COMPACTION.priority();
+            this.compactionSubtypePriority = 0L;
+        }
+
+        public Integer getTypePriority()
+        {
+            return this.compactionTypePriority;
+        }
+
+        public Long getSubTypePriority()
+        {
+            return this.compactionSubtypePriority;
+        }
+
+        public Long getTimestamp()
+        {
+            return this.taskTimestamp;
         }
 
         public void run()
@@ -264,6 +285,8 @@ public class CompactionManager implements CompactionManagerMBean
                     logger.trace("No tasks available");
                     return;
                 }
+                this.compactionTypePriority = task.getTypePriority();
+                this.compactionSubtypePriority = task.getSubTypePriority();
                 task.execute(metrics);
             }
             finally
@@ -303,7 +326,7 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 final LifecycleTransaction txn = compacting.split(singleton(sstable));
                 transactions.add(txn);
-                Callable<Object> callable = new Callable<Object>()
+                Callable<Object> callable = new PrioritizedCompactionCallable<Object>(operationType.priority())
                 {
                     @Override
                     public Object call() throws Exception
@@ -569,7 +592,7 @@ public class CompactionManager implements CompactionManagerMBean
                                           final Refs<SSTableReader> sstables,
                                           final long repairedAt)
     {
-        Runnable runnable = new WrappedRunnable()
+        Runnable runnable = new PrioritizedCompactionWrappedRunnable(OperationType.ANTICOMPACTION.priority())
         {
             @Override
             @SuppressWarnings("resource")
@@ -714,7 +737,7 @@ public class CompactionManager implements CompactionManagerMBean
             if (task.transaction.originals().size() > 0)
                 nonEmptyTasks++;
 
-            Runnable runnable = new WrappedRunnable()
+            Runnable runnable = new PrioritizedCompactionWrappedRunnable(OperationType.COMPACTION.priority())
             {
                 protected void runMayThrow()
                 {
@@ -749,7 +772,7 @@ public class CompactionManager implements CompactionManagerMBean
         if (tasks == null)
             return;
 
-        Runnable runnable = new WrappedRunnable()
+        Runnable runnable = new PrioritizedCompactionWrappedRunnable(OperationType.COMPACTION.priority())
         {
             protected void runMayThrow()
             {
@@ -864,7 +887,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public Future<?> submitUserDefined(final ColumnFamilyStore cfs, final Collection<Descriptor> dataFiles, final int gcBefore)
     {
-        Runnable runnable = new WrappedRunnable()
+        Runnable runnable = new PrioritizedCompactionWrappedRunnable(OperationType.USER_DEFINED_COMPACTION.priority())
         {
             protected void runMayThrow()
             {
@@ -921,7 +944,7 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public Future<?> submitValidation(final ColumnFamilyStore cfStore, final Validator validator)
     {
-        Callable<Object> callable = new Callable<Object>()
+        Callable<Object> callable = new PrioritizedCompactionCallable<Object>(OperationType.VALIDATION.priority())
         {
             public Object call() throws IOException
             {
@@ -1574,7 +1597,7 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public Future<?> submitIndexBuild(final SecondaryIndexBuilder builder)
     {
-        Runnable runnable = new Runnable()
+        Runnable runnable = new PrioritizedCompactionRunnable(OperationType.INDEX_BUILD.priority())
         {
             public void run()
             {
@@ -1595,7 +1618,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public Future<?> submitCacheWrite(final AutoSavingCache.Writer writer)
     {
-        Runnable runnable = new Runnable()
+        Runnable runnable = new PrioritizedCompactionRunnable(writer.type().priority())
         {
             public void run()
             {
@@ -1688,7 +1711,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public Future<?> submitViewBuilder(final ViewBuilder builder)
     {
-        Runnable runnable = new Runnable()
+        Runnable runnable = new PrioritizedCompactionRunnable(OperationType.VIEW_BUILD.priority())
         {
             public void run()
             {
@@ -1725,12 +1748,30 @@ public class CompactionManager implements CompactionManagerMBean
 
         private CompactionExecutor(int threadCount, String name)
         {
-            this(threadCount, threadCount, name, new LinkedBlockingQueue<Runnable>());
+            this(threadCount, threadCount, name, new PriorityBlockingQueue<Runnable>(threadCount, new CompactionPriorityComparator()));
         }
 
         public CompactionExecutor()
         {
             this(Math.max(1, DatabaseDescriptor.getConcurrentCompactors()), "CompactionExecutor");
+        }
+
+        // We override newTaskFor to return a future with access to priority
+        protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value)
+        {
+            if(runnable instanceof IPrioritizedCompactionComparable)
+                return new PrioritizedCompactionFutureTask<T>(runnable, value, ((IPrioritizedCompactionComparable) runnable).getTypePriority(), ((IPrioritizedCompactionComparable) runnable).getSubTypePriority());
+            else
+                return new FutureTask<T>(runnable, value);
+        }
+
+        // We override newTaskFor to return a future with access to priority
+        protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable)
+        {
+            if(callable instanceof IPrioritizedCompactionComparable)
+                return new PrioritizedCompactionFutureTask<T>(callable, ((IPrioritizedCompactionComparable)callable).getTypePriority(), ((IPrioritizedCompactionComparable)callable).getSubTypePriority());
+            else
+                return new FutureTask<T>(callable);
         }
 
         protected void beforeExecute(Thread t, Runnable r)
@@ -1807,6 +1848,108 @@ public class CompactionManager implements CompactionManagerMBean
                     logger.error("Failed to submit {}", name, ex);
 
                 return Futures.immediateCancelledFuture();
+            }
+        }
+    }
+
+    public static class CompactionPriorityComparator implements Comparator<Runnable>
+    {
+        @Override
+        public int compare(Runnable r1, Runnable r2)
+        {
+            if(r1 == null && r2 == null)
+            {
+                return 0;
+            }
+            else if(r1 == null)
+            {
+                return 1;
+            }
+            else if (r2 == null)
+            {
+                return -1;
+            }
+            else
+            {
+                int p1 = typePriorityByRunnable(r1);
+                int p2 = typePriorityByRunnable(r2);
+
+                if (p1 > p2)
+                {
+                    return -1;
+                }
+                else if (p1 < p2)
+                {
+                    return 1;
+                }
+                else
+                {
+                    long sp1 = subTypePriorityByRunnable(r1);
+                    long sp2 = subTypePriorityByRunnable(r2);
+                    if (sp1 > sp2)
+                    {
+                        return -1;
+                    }
+                    else if (sp1 < sp2)
+                    {
+                        return 1;
+                    }
+                    else
+                    {
+                        // If same op type, and same sub priority
+                        // Favor the task with the lowest timestamp
+                        Long t1 = timePriorityByRunnable(r1);
+                        Long t2 = timePriorityByRunnable(r2);
+                        if (t1 < t2)
+                        {
+                            return -1;
+                        }
+                        else if (t1 > t2)
+                        {
+                            return 1;
+                        }
+                    }
+                }
+            }
+            return 0;
+        }
+
+        protected Integer typePriorityByRunnable(Runnable r)
+        {
+            if(r instanceof IPrioritizedCompactionComparable)
+            {
+                return ((IPrioritizedCompactionComparable)r).getTypePriority();
+            }
+            else
+            {
+                logger.warn("Runnable {} is not an prioritized compaction task {}", r, r.getClass());
+                return 0;
+            }
+        }
+
+        protected Long subTypePriorityByRunnable(Runnable r)
+        {
+            if(r instanceof IPrioritizedCompactionComparable)
+            {
+                return ((IPrioritizedCompactionComparable) r).getSubTypePriority();
+            }
+            else
+            {
+                logger.warn("Runnable {} is not an prioritized compaction task {}", r, r.getClass());
+                return 0L;
+            }
+        }
+
+        protected Long timePriorityByRunnable(Runnable r)
+        {
+            if(r instanceof IPrioritizedCompactionComparable)
+            {
+                return ((IPrioritizedCompactionComparable) r).getTimestamp();
+            }
+            else
+            {
+                logger.warn("Runnable {} is not an prioritized compaction task {}", r, r.getClass());
+                return 0L;
             }
         }
     }
