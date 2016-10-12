@@ -503,6 +503,8 @@ public class PageAlignedReader implements FileDataInput, Closeable
 
     public void seek(long pos) throws IOException
     {
+        if(!(pos >= 0 && pos >= currentSubSegmentOffset && pos <= currentSubSegmentAlignedEndOffset))
+            logger.warn(String.format("About to fail assert in seek(%s) - pos = %s , sub segment offset %s , aligned end offset %s, reader %s", pos, pos, currentSubSegmentOffset, currentSubSegmentAlignedEndOffset, this));
         assert pos >= 0 && pos >= currentSubSegmentOffset && pos <= currentSubSegmentAlignedEndOffset;
 
         raf.seek(pos);
@@ -721,5 +723,10 @@ public class PageAlignedReader implements FileDataInput, Closeable
     public String readUTF() throws IOException
     {
         throw new UnsupportedOperationException();
+    }
+
+    public String toString()
+    {
+        return "PageAlignedReader[file="+this.file+",totalSegments="+this.totalSegments+",pageAlignedChunkSize="+this.pageAlignedChunkSize+"]";
     }
 }

@@ -23,6 +23,8 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 import com.google.common.collect.AbstractIterator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellNameType;
@@ -43,6 +45,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskAtomIterator, Closeable
 {
+    private static final Logger logger = LoggerFactory.getLogger(IndexedSliceReader.class);
+
     private final ColumnFamily emptyColumnFamily;
 
     private final SSTableReader sstable;
@@ -263,6 +267,12 @@ class IndexedSliceReader extends AbstractIterator<OnDiskAtom> implements OnDiskA
                         continue;
 
                     IndexInfo info = indexedEntry.peek();
+                    if(info == null)
+                    {
+                        logger.warn("indexed entry peek() is null in getNextIndexedSlice()");
+                        continue;
+                    }
+
                     if (reversed)
                     {
                         // todo: kjellman -> handle legacy..
