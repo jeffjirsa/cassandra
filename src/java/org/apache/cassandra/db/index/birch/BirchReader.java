@@ -23,6 +23,7 @@ import com.google.common.collect.AbstractIterator;
 import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.db.composites.Composites;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.BirchMetrics;
@@ -518,32 +519,46 @@ public class BirchReader<T> implements Closeable
                     offset = binarySearchNode(searchKey, type, reversed);
                 }
 
-                this.currentPage = (int) (offset - descriptor.getFirstLeafOffset()) / descriptor.getAlignedPageSize();
-
-                // go to leaf...
-                reader.seek(offset);
-
-                int binarySearchRes = binarySearchLeaf(searchKey, type, reversed).right;
-                this.currentElmIdx = (binarySearchRes < 0) ? 0 : binarySearchRes;
-            }
-            else
-            {
-                // traverse and return all elements in the tree
-                if (reversed)
+                if (offset == -1)
                 {
-                    this.currentPage = totalLeafPages;
-                    // as we are in reversed mode, go to the last leaf page
-                    reader.seek(descriptor.getFirstLeafOffset() + ((currentPage - 1) * (descriptor.getAlignedPageSize())));
-                    PageAlignedFileMark currentPageStart = (PageAlignedFileMark) reader.mark();
-                    short numElements = reader.readShort();
-                    this.currentElmIdx = (numElements == 1) ? 0 : numElements - 1;
-                    reader.reset(currentPageStart);
+                    // search key wasn't found, start at either the first or last element
+                    // depending on if the iterator is in reversed mode or not
+                    initializeIteratorToDefaultStart();
                 }
                 else
                 {
-                    this.currentPage = 0;
-                    this.currentElmIdx = 0;
+                    this.currentPage = (int) (offset - descriptor.getFirstLeafOffset()) / descriptor.getAlignedPageSize();
+
+                    // go to leaf...
+                    reader.seek(offset);
+
+                    int binarySearchRes = binarySearchLeaf(searchKey, type, reversed).right;
+                    this.currentElmIdx = (binarySearchRes < 0) ? 0 : binarySearchRes;
                 }
+            }
+            else
+            {
+                initializeIteratorToDefaultStart();
+            }
+        }
+
+        private void initializeIteratorToDefaultStart() throws IOException
+        {
+            // traverse and return all elements in the tree
+            if (reversed)
+            {
+                this.currentPage = totalLeafPages;
+                // as we are in reversed mode, go to the last leaf page
+                reader.seek(descriptor.getFirstLeafOffset() + ((currentPage - 1) * (descriptor.getAlignedPageSize())));
+                PageAlignedFileMark currentPageStart = (PageAlignedFileMark) reader.mark();
+                short numElements = reader.readShort();
+                this.currentElmIdx = (numElements == 1) ? 0 : numElements - 1;
+                reader.reset(currentPageStart);
+            }
+            else
+            {
+                this.currentPage = 0;
+                this.currentElmIdx = 0;
             }
         }
 

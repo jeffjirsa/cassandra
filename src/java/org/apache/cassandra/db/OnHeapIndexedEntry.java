@@ -153,7 +153,7 @@ public class OnHeapIndexedEntry implements IndexedEntry
 
     public IndexInfo peek()
     {
-        return (lastDeserializedBlock + 1 < columnsIndex.size()) ? columnsIndex.get(lastDeserializedBlock + 1) : null;
+        return (nextIndexIdx + 1 < columnsIndex.size()) ? columnsIndex.get(nextIndexIdx + 1) : null;
     }
 
     public void startIteratorAt(Composite name, CellNameType comparator, boolean reversed)
