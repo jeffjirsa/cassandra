@@ -31,6 +31,8 @@ import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.IndexInfo;
+import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ObjectSizes;
 
 /**
@@ -40,24 +42,26 @@ import org.apache.cassandra.utils.ObjectSizes;
  */
 public class OnHeapIndexedEntry implements IndexedEntry
 {
+    private static final long BASE_SIZE = ObjectSizes.measure(new OnHeapIndexedEntry(0, DeletionTime.LIVE, Arrays.<IndexInfo>asList(null, null), null))
+                                          + ObjectSizes.measure(new ArrayList<>(1));
+
     public final long position;
     private final DeletionTime deletionTime;
     private final List<IndexInfo> columnsIndex;
-    private static final long BASE_SIZE =
-    ObjectSizes.measure(new OnHeapIndexedEntry(0, DeletionTime.LIVE, Arrays.<IndexInfo>asList(null, null)))
-    + ObjectSizes.measure(new ArrayList<>(1));
+    private final FileDataInput reader;
 
     private int nextIndexIdx = -1;
     private int lastDeserializedBlock = -1;
     private boolean iteratorDirectionReversed = false;
 
-    public OnHeapIndexedEntry(long position, DeletionTime deletionTime, List<IndexInfo> columnsIndex)
+    public OnHeapIndexedEntry(long position, DeletionTime deletionTime, List<IndexInfo> columnsIndex, FileDataInput reader)
     {
         this.position = position;
         assert deletionTime != null;
         assert columnsIndex != null && columnsIndex.size() > 1;
         this.deletionTime = deletionTime;
         this.columnsIndex = columnsIndex;
+        this.reader = reader;
     }
 
     /**
@@ -164,7 +168,8 @@ public class OnHeapIndexedEntry implements IndexedEntry
 
     public void close()
     {
-
+        if (reader != null)
+            FileUtils.closeQuietly(reader);
     }
 
     public void reset(boolean reversed)

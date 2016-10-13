@@ -23,7 +23,6 @@ import com.google.common.collect.AbstractIterator;
 import com.yammer.metrics.core.TimerContext;
 import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.db.composites.Composites;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.BirchMetrics;

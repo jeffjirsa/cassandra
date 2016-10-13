@@ -30,11 +30,11 @@ public class IndexedEntryFactory
         // the beginning of the row anyway, so we might as well read the tombstone there as well.
         if (index.columnsIndex.size() > 1)
         {
-            return new OnHeapIndexedEntry(position, deletionTime, index.columnsIndex);
+            return new OnHeapIndexedEntry(position, deletionTime, index.columnsIndex, null);
         }
         else
         {
-            return new NonIndexedRowEntry(position);
+            return new NonIndexedRowEntry(position, null);
         }
     }
 }

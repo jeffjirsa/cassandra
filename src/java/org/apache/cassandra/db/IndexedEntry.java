@@ -35,6 +35,7 @@ import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 
 import static org.apache.cassandra.db.index.birch.BirchWriter.SerializerType;
@@ -135,7 +136,7 @@ public interface IndexedEntry extends IMeasurableMemory, Iterator<IndexInfo>
                 }
                 else
                 {
-                    return new NonIndexedRowEntry(position);
+                    return new NonIndexedRowEntry(position, reader);
                 }
             }
             else
@@ -152,11 +153,11 @@ public interface IndexedEntry extends IMeasurableMemory, Iterator<IndexInfo>
                     for (int i = 0; i < entries; i++)
                         columnsIndex.add(idxSerializer.deserialize(in));
 
-                    return new OnHeapIndexedEntry(position, deletionTime, columnsIndex);
+                    return new OnHeapIndexedEntry(position, deletionTime, columnsIndex, (FileDataInput) in);
                 }
                 else
                 {
-                    return new NonIndexedRowEntry(position);
+                    return new NonIndexedRowEntry(position, (FileDataInput) in);
                 }
             }
         }

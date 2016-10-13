@@ -25,6 +25,8 @@ import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.sstable.IndexInfo;
+import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ObjectSizes;
 
 /**
@@ -33,13 +35,15 @@ import org.apache.cassandra.utils.ObjectSizes;
  */
 public class NonIndexedRowEntry implements IndexedEntry
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new NonIndexedRowEntry(0));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new NonIndexedRowEntry(0, null));
 
     public final long position;
+    private final FileDataInput reader;
 
-    public NonIndexedRowEntry(long position)
+    public NonIndexedRowEntry(long position, FileDataInput reader)
     {
         this.position = position;
+        this.reader = reader;
     }
 
     public int promotedSize(CType type)
@@ -108,7 +112,8 @@ public class NonIndexedRowEntry implements IndexedEntry
 
     public void close()
     {
-        //throw new UnsupportedOperationException();
+        if (reader != null)
+            FileUtils.closeQuietly(reader);
     }
 
     public void reset(boolean reversed)
