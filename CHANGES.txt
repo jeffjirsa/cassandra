@@ -124,6 +124,7 @@ Merged from 2.2:
  * Fix leak errors and execution rejected exceptions when draining (CASSANDRA-12457)
  * Fix merkle tree depth calculation (CASSANDRA-12580)
  * Make Collections deserialization more robust (CASSANDRA-12618)
+ * Correct an ommission for simultaneous moves during bootstrap (CASSANDRA-12786)
  * Fix exceptions when enabling gossip on nodes that haven't joined the ring (CASSANDRA-12253)
  * Fix authentication problem when invoking cqlsh copy from a SOURCE command (CASSANDRA-12642)
  * Decrement pending range calculator jobs counter in finally block
