@@ -5,6 +5,8 @@
  * Fix merkle tree depth calculation (CASSANDRA-12580)
  * Make Collections deserialization more robust (CASSANDRA-12618)
  * Better handle invalid system roles table (CASSANDRA-12700)
+Merged from 2.1:
+ * OutboundTcpConnection catch Throwable instead of Exception (CASSANDRA-12633)
  
  
 2.2.8
