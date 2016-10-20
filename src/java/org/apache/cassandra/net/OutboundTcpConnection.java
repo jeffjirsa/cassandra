@@ -234,7 +234,7 @@ public class OutboundTcpConnection extends Thread
                         // clear out the queue, else gossip messages back up.
                         backlog.clear();
                 }
-                catch (Exception e)
+                catch (Throwable e)
                 {
                     JVMStabilityInspector.inspectThrowable(e);
                     // really shouldn't get here, as exception handling in writeConnected() is reasonably robust

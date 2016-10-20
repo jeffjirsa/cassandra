@@ -34,7 +34,7 @@ Merged from 2.2:
   (CASSANDRA-12554)
 Merged from 2.1:
  * Add system property to set the max number of native transport requests in queue (CASSANDRA-11363)
-
+ * OutboundTcpConnection catch Throwable instead of Exception (CASSANDRA-12633)
 
 3.0.9
  * Handle composite prefixes with final EOC=0 as in 2.x and refactor LegacyLayout.decodeBound (CASSANDRA-12423)
