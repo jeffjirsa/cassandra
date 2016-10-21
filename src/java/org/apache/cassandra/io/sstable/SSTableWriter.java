@@ -623,10 +623,17 @@ public class SSTableWriter extends SSTable
             try
             {
                 long indexStart = indexFile.getFilePointer();
-                indexFile.startNewSegment();
+
+                if(indexEntry.isIndexed())
+                    indexFile.startNewSegment();
+                else
+                    indexFile.startNewNonPageAlignedSegment();
+
                 indexFile.startNewNonPageAlignedSubSegment();
+
                 ByteBufferUtil.writeWithShortLength(key.getKey(), indexFile.stream);
                 metadata.comparator.rowIndexEntrySerializer().serialize(indexEntry, indexFile);
+
                 long indexEnd = indexFile.getFilePointer();
 
                 if (logger.isTraceEnabled())

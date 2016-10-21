@@ -200,6 +200,7 @@ public class PageAlignedWriter implements DataOutput, WritableByteChannel
     private int currentSubSegmentPageBlockSize;
     private boolean segmentInProgress = false;
     private boolean subSegmentInProgress = false;
+    private boolean segmentInProgressIsAligned = false;
 
     private List<AlignedSubSegment> finishedSubSegments;
 
@@ -263,10 +264,23 @@ public class PageAlignedWriter implements DataOutput, WritableByteChannel
     {
         assert !segmentInProgress;
 
+        alignFile();
         this.currentSegmentStartOffset = out.getFilePointer();
         this.finishedSubSegments = new ArrayList<>();
         this.segmentInProgress = true;
+        this.segmentInProgressIsAligned = true;
     }
+
+    public void startNewNonPageAlignedSegment() throws IOException
+    {
+        assert !segmentInProgress;
+
+        this.currentSegmentStartOffset = out.getFilePointer();
+        this.finishedSubSegments = new ArrayList<>();
+        this.segmentInProgress = true;
+        this.segmentInProgressIsAligned = false;
+    }
+
 
     public void startNewNonPageAlignedSubSegment() throws IOException
     {
@@ -280,6 +294,8 @@ public class PageAlignedWriter implements DataOutput, WritableByteChannel
     public void startNewSubSegment(int pageBlockSize) throws IOException
     {
         assert segmentInProgress && !subSegmentInProgress;
+        alignFile();
+
         // ensure page block size is a valid multiple of 2
         assert ((pageBlockSize & (pageBlockSize & (pageBlockSize - 1))) == 0);
 
@@ -294,8 +310,6 @@ public class PageAlignedWriter implements DataOutput, WritableByteChannel
 
         long endOffset = finishedSubSegments.get(finishedSubSegments.size() - 1).getEndOffset();
 
-        alignFile();
-
         long alignedEndOffset = out.getFilePointer();
         long segmentLength = endOffset - currentSegmentStartOffset;
         long alignedSegmentLength = alignedEndOffset - currentSegmentStartOffset;
@@ -309,7 +323,7 @@ public class PageAlignedWriter implements DataOutput, WritableByteChannel
 
         this.finishedSubSegments = null;
         this.segmentInProgress = false;
-
+        this.segmentInProgressIsAligned = false;
         lastFlushOffset = out.length();
 
         maybeFsyncParentDirectory();
@@ -320,9 +334,6 @@ public class PageAlignedWriter implements DataOutput, WritableByteChannel
         assert segmentInProgress && subSegmentInProgress;
 
         long endOffset = out.getFilePointer();
-
-        alignFile();
-
         long alignedEndOffset = out.getFilePointer();
         long subSegmentLength = endOffset - currentSubSegmentStartOffset;
         long alignedSubSegmentLength = alignedEndOffset - currentSubSegmentStartOffset;
@@ -334,10 +345,11 @@ public class PageAlignedWriter implements DataOutput, WritableByteChannel
         assert subSegmentLength <= alignedSubSegmentLength;
 
         finishedSubSegments.add(new AlignedSubSegment((short) finishedSubSegments.size(), currentSubSegmentStartOffset, subSegmentLength,
-                                                      alignedSubSegmentLength, currentSubSegmentPageBlockSize != SEGMENT_NOT_PAGE_ALIGNED));
+                                                      alignedSubSegmentLength, this.segmentInProgressIsAligned && currentSubSegmentPageBlockSize != SEGMENT_NOT_PAGE_ALIGNED));
 
         subSegmentInProgress = false;
     }
+
 
     private int alignTo()
     {
