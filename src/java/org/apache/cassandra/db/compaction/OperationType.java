@@ -19,181 +19,68 @@ package org.apache.cassandra.db.compaction;
 
 public enum OperationType
 {
-    COMPACTION("Compaction") {
-        @Override
-        public Integer priority()
-        {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.compaction", "128")), 1);
-        }
-    },
-    VALIDATION("Validation")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.validation", "256")),1);
-        }
-    },
-    KEY_CACHE_SAVE("Key cache save")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.keycachesave", "256")),1);
-        }
-    },
-    ROW_CACHE_SAVE("Row cache save")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.rowcachesave", "256")),1);
-        }
-    },
-    COUNTER_CACHE_SAVE("Counter cache save")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.countercachesave", "256")),1);
-        }
-    },
-    CLEANUP("Cleanup")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.cleanup", "64")),1);
-        }
-    },
-    SCRUB("Scrub")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.scrub", "64")), 1);
-        }
-    },
-    UPGRADE_SSTABLES("Upgrade sstables")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.upgrade", "64")),1);
-        }
-    },
-    INDEX_BUILD("Secondary index build")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.indexbuild", "512")),1);
-        }
-    },
+    COMPACTION("Compaction", 128),
+    VALIDATION("Validation", 256),
+    KEY_CACHE_SAVE("Key cache save", 256),
+    ROW_CACHE_SAVE("Row cache save", 256),
+    COUNTER_CACHE_SAVE("Counter cache save", 256),
+    CLEANUP("Cleanup", 64),
+    SCRUB("Scrub", 64),
+    UPGRADE_SSTABLES("Upgrade sstables", 64),
+    INDEX_BUILD("Secondary index build", 512),
     /** Compaction for tombstone removal */
-    TOMBSTONE_COMPACTION("Tombstone Compaction")
+    TOMBSTONE_COMPACTION("Tombstone Compaction", 96),
+    UNKNOWN("Unknown compaction type", Integer.MAX_VALUE)
     {
         @Override
-        public Integer priority()
+        public int priority()
         {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.tombstonecompaction", "96")),1);
+            return this.defaultPriority;
         }
     },
-    UNKNOWN("Unknown compaction type")
+    ANTICOMPACTION("Anticompaction after repair", 1024),
+    VERIFY("Verify", 1),
+    FLUSH("Flush", Integer.MAX_VALUE)
     {
         @Override
-        public Integer priority()
+        public int priority()
         {
-            return Integer.MAX_VALUE;
+            return this.defaultPriority;
         }
     },
-    ANTICOMPACTION("Anticompaction after repair")
+    STREAM("Stream", Integer.MAX_VALUE)
     {
         @Override
-        public Integer priority()
+        public int priority()
         {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.anticompaction", "1024")),1);
+            return this.defaultPriority;
         }
     },
-    VERIFY("Verify")
+    WRITE("Write", Integer.MAX_VALUE)
     {
         @Override
-        public Integer priority()
+        public int priority()
         {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.verify", "1")),1);
+            return this.defaultPriority;
         }
     },
-    FLUSH("Flush")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Integer.MAX_VALUE;
-        }
-    },
-    STREAM("Stream")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Integer.MAX_VALUE;
-        }
-    },
-    WRITE("Write")    {
-        @Override
-        public Integer priority()
-        {
-            return Integer.MAX_VALUE;
-        }
-    },
-    VIEW_BUILD("View build")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.viewbuild", "512")),1);
-        }
-    },
-    INDEX_SUMMARY("Index summary redistribution")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Integer.MAX_VALUE;
-        }
-    },
-    USER_DEFINED_COMPACTION("User defined compaction")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.user_defined_compaction", "192")),1);
-        }
-    },
-    RELOCATE("Relocate sstables to correct disk")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.relocate", "192")), 1);
-        }
-    },
-    GARBAGE_COLLECT("Remove deleted data")
-    {
-        @Override
-        public Integer priority()
-        {
-            return Math.max(Integer.valueOf(System.getProperty("cassandra.compaction.priority.garbage_collection", "96")),1);
-        }
-    };
+    VIEW_BUILD("View build", 512),
+    INDEX_SUMMARY("Index summary redistribution", Integer.MAX_VALUE),
+    USER_DEFINED_COMPACTION("User defined compaction", 192),
+    RELOCATE("Relocate sstables to correct disk", 192),
+    GARBAGE_COLLECT("Remove deleted data", 96);
+
+    private static final String priorityPropertyRoot = "cassandra.compaction.priority.";
 
     public final String type;
     public final String fileName;
+    private final int defaultPriority;
 
-    OperationType(String type)
+    OperationType(String type, int defaultPriority)
     {
         this.type = type;
         this.fileName = type.toLowerCase().replace(" ", "");
+        this.defaultPriority = defaultPriority;
     }
 
     public static OperationType fromFileName(String fileName)
@@ -205,7 +92,10 @@ public enum OperationType
         throw new IllegalArgumentException("Invalid fileName for operation type: " + fileName);
     }
 
-    abstract public Integer priority();
+    public Integer priority()
+    {
+        return Math.max(Integer.getInteger(priorityPropertyRoot + name().toLowerCase(), defaultPriority), 1);
+    }
 
     public String toString()
     {
