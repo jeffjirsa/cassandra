@@ -92,7 +92,7 @@ public enum OperationType
         throw new IllegalArgumentException("Invalid fileName for operation type: " + fileName);
     }
 
-    public Integer priority()
+    public int priority()
     {
         return Math.max(Integer.getInteger(priorityPropertyRoot + name().toLowerCase(), defaultPriority), 1);
     }

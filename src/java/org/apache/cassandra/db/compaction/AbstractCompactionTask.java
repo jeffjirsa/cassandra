@@ -106,19 +106,19 @@ public abstract class AbstractCompactionTask extends WrappedRunnable implements 
         return this;
     }
 
-    public Integer getTypePriority()
+    public int getTypePriority()
     {
-        return this.compactionTypePriority;
+        return compactionTypePriority;
     }
 
-    public Long getSubTypePriority()
+    public long getSubTypePriority()
     {
-        return this.compactionSubTypePriorty;
+        return compactionSubTypePriorty;
     }
 
-    public Long getTimestamp()
+    public long getTimestamp()
     {
-        return this.taskTimestamp;
+        return taskTimestamp;
     }
 
     public String toString()

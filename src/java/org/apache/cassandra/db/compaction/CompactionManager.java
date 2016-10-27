@@ -252,17 +252,17 @@ public class CompactionManager implements CompactionManagerMBean
             this.compactionSubtypePriority = 0L;
         }
 
-        public Integer getTypePriority()
+        public int getTypePriority()
         {
             return this.compactionTypePriority;
         }
 
-        public Long getSubTypePriority()
+        public long getSubTypePriority()
         {
             return this.compactionSubtypePriority;
         }
 
-        public Long getTimestamp()
+        public long getTimestamp()
         {
             return this.taskTimestamp;
         }

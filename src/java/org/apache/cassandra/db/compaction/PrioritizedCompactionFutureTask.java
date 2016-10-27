@@ -26,49 +26,49 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class PrioritizedCompactionFutureTask<T> extends FutureTask<T> implements IPrioritizedCompactionComparable
 {
-    protected final AtomicInteger compactionTypePriority;
-    protected final AtomicLong compactionSubTypePriority;
-    protected final AtomicLong taskTimestamp;
+    final int compactionTypePriority;
+    final long compactionSubTypePriority;
+    final long taskTimestamp;
 
-    public PrioritizedCompactionFutureTask(Callable<T> callable, Integer typePriority, Long subTypePriority)
+    public PrioritizedCompactionFutureTask(Callable<T> callable, int typePriority, long subTypePriority)
     {
         super(callable);
-        this.compactionTypePriority = new AtomicInteger(typePriority);
-        this.compactionSubTypePriority = new AtomicLong(subTypePriority);
-        this.taskTimestamp = new AtomicLong(System.currentTimeMillis());
+        this.compactionTypePriority = typePriority;
+        this.compactionSubTypePriority = subTypePriority;
+        this.taskTimestamp = System.currentTimeMillis();
     }
 
-    public PrioritizedCompactionFutureTask(Runnable runnable, T value, Integer typePriority, Long subTypePriority)
+    public PrioritizedCompactionFutureTask(Runnable runnable, T value, int typePriority, long subTypePriority)
     {
         super(runnable, value);
-        this.compactionTypePriority = new AtomicInteger(typePriority);
-        this.compactionSubTypePriority = new AtomicLong(subTypePriority);
-        this.taskTimestamp = new AtomicLong(System.currentTimeMillis());
+        this.compactionTypePriority = typePriority;
+        this.compactionSubTypePriority = subTypePriority;
+        this.taskTimestamp = System.currentTimeMillis();
     }
 
 
-    public Integer getTypePriority()
+    public int getTypePriority()
     {
-        return this.compactionTypePriority.get();
+        return compactionTypePriority;
     }
 
-    public Long getSubTypePriority()
+    public long getSubTypePriority()
     {
-        return this.compactionSubTypePriority.get();
+        return compactionSubTypePriority;
     }
 
-    public Long getTimestamp()
+    public long getTimestamp()
     {
-        return taskTimestamp.get();
+        return taskTimestamp;
     }
 
     @Override
     public String toString()
     {
         return String.format("PrioritizedCompactionFutureTask(TypePriority=%s,SubTypePriority=%s,Timestamp=%s",
-                             compactionTypePriority.get(),
-                             compactionSubTypePriority.get(),
-                             taskTimestamp.get());
+                             compactionTypePriority,
+                             compactionSubTypePriority,
+                             taskTimestamp);
     }
 
 }

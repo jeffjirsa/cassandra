@@ -19,52 +19,50 @@
 
 package org.apache.cassandra.db.compaction;
 
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
 abstract public class PrioritizedCompactionRunnable implements Runnable, IPrioritizedCompactionComparable
 {
-    protected final AtomicInteger compactionTypePriority;
-    protected final AtomicLong compactionSubTypePriority;
-    protected final AtomicLong timestamp;
+    protected final int compactionTypePriority;
+    protected final long compactionSubTypePriority;
+    protected final long timestamp;
 
 
-    protected PrioritizedCompactionRunnable(Integer typePriority)
+    protected PrioritizedCompactionRunnable(int typePriority)
     {
         super();
-        this.compactionTypePriority = new AtomicInteger(typePriority);
-        this.compactionSubTypePriority = new AtomicLong(0);
-        this.timestamp = new AtomicLong(System.currentTimeMillis());
+        this.compactionTypePriority = typePriority;
+        this.compactionSubTypePriority = 0;
+        this.timestamp = System.currentTimeMillis();
     }
 
-    protected PrioritizedCompactionRunnable(Integer typePriority, Long subTypePriority)
+    protected PrioritizedCompactionRunnable(int typePriority, long subTypePriority)
     {
         super();
-        this.compactionTypePriority = new AtomicInteger(typePriority);
-        this.compactionSubTypePriority = new AtomicLong(subTypePriority);
-        this.timestamp = new AtomicLong(System.currentTimeMillis());
+        this.compactionTypePriority = typePriority;
+        this.compactionSubTypePriority = subTypePriority;
+        this.timestamp = System.currentTimeMillis();
     }
 
-    public Integer getTypePriority()
+    public int getTypePriority()
     {
-        return this.compactionTypePriority.get();
+        return compactionTypePriority;
     }
 
-    public Long getSubTypePriority()
+    public long getSubTypePriority()
     {
-        return this.compactionSubTypePriority.get();
+        return compactionSubTypePriority;
     }
 
-    public Long getTimestamp()
+    public long getTimestamp()
     {
-        return this.timestamp.get();
+        return timestamp;
     }
 
     public String toString()
     {
         return String.format("PrioritizedCompactionRunnable(TypePriority=%s,SubTypePriority=%s,Timestamp=%s",
-                             compactionTypePriority.get(),
-                             compactionSubTypePriority.get());
+                             compactionTypePriority,
+                             compactionSubTypePriority,
+                             timestamp);
     }
 
 }

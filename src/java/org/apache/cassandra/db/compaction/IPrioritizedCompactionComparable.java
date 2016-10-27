@@ -22,10 +22,10 @@ package org.apache.cassandra.db.compaction;
 public interface IPrioritizedCompactionComparable
 {
 
-    Integer getTypePriority();
+    int getTypePriority();
 
-    Long getSubTypePriority();
+    long getSubTypePriority();
 
-    Long getTimestamp();
+    long getTimestamp();
 
 }
