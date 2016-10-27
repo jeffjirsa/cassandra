@@ -1852,104 +1852,71 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    public static class CompactionPriorityComparator implements Comparator<Runnable>
+    static class CompactionPriorityComparator implements Comparator<Runnable>
     {
+        private static class Priorities implements Comparable<Priorities>
+        {
+            private static final Priorities DEFAULT = new Priorities(0, 0, 0);
+            private final int type;
+            private final long subtype;
+            private final long timestamp;
+
+            Priorities(IPrioritizedCompactionComparable prioritized)
+            {
+                this.type = prioritized.getTypePriority();
+                this.subtype = prioritized.getSubTypePriority();
+                this.timestamp = prioritized.getTimestamp();
+            }
+
+            Priorities(int type, long subtype, long timestamp)
+            {
+                this.type = type;
+                this.subtype = subtype;
+                this.timestamp = timestamp;
+            }
+
+            public int compareTo(Priorities o)
+            {
+                if (type > o.type)
+                    return -1;
+                if (type < o.type)
+                    return 1;
+                if (subtype > o.subtype)
+                    return -1;
+                if (subtype < o.subtype)
+                    return 1;
+
+                // If same op type, and same sub priority
+                // Favor the task with the lowest timestamp
+                return timestamp < o.timestamp
+                       ? -1
+                       : timestamp > o.timestamp ? 1 : 0;
+            }
+        }
+
         @Override
         public int compare(Runnable r1, Runnable r2)
         {
             if(r1 == null && r2 == null)
-            {
                 return 0;
-            }
             else if(r1 == null)
-            {
                 return 1;
-            }
             else if (r2 == null)
-            {
                 return -1;
-            }
             else
-            {
-                int p1 = typePriorityByRunnable(r1);
-                int p2 = typePriorityByRunnable(r2);
-
-                if (p1 > p2)
-                {
-                    return -1;
-                }
-                else if (p1 < p2)
-                {
-                    return 1;
-                }
-                else
-                {
-                    long sp1 = subTypePriorityByRunnable(r1);
-                    long sp2 = subTypePriorityByRunnable(r2);
-                    if (sp1 > sp2)
-                    {
-                        return -1;
-                    }
-                    else if (sp1 < sp2)
-                    {
-                        return 1;
-                    }
-                    else
-                    {
-                        // If same op type, and same sub priority
-                        // Favor the task with the lowest timestamp
-                        Long t1 = timePriorityByRunnable(r1);
-                        Long t2 = timePriorityByRunnable(r2);
-                        if (t1 < t2)
-                        {
-                            return -1;
-                        }
-                        else if (t1 > t2)
-                        {
-                            return 1;
-                        }
-                    }
-                }
-            }
-            return 0;
+                return getPrioritiesForRunnable(r1).compareTo(getPrioritiesForRunnable(r2));
         }
 
-        protected Integer typePriorityByRunnable(Runnable r)
+        private Priorities getPrioritiesForRunnable(Runnable r)
         {
-            if(r instanceof IPrioritizedCompactionComparable)
+            if (r instanceof IPrioritizedCompactionComparable)
             {
-                return ((IPrioritizedCompactionComparable)r).getTypePriority();
+                return new Priorities((IPrioritizedCompactionComparable)r);
             }
             else
             {
                 logger.warn("Runnable {} is not an prioritized compaction task {}", r, r.getClass());
-                return 0;
-            }
-        }
-
-        protected Long subTypePriorityByRunnable(Runnable r)
-        {
-            if(r instanceof IPrioritizedCompactionComparable)
-            {
-                return ((IPrioritizedCompactionComparable) r).getSubTypePriority();
-            }
-            else
-            {
-                logger.warn("Runnable {} is not an prioritized compaction task {}", r, r.getClass());
-                return 0L;
-            }
-        }
-
-        protected Long timePriorityByRunnable(Runnable r)
-        {
-            if(r instanceof IPrioritizedCompactionComparable)
-            {
-                return ((IPrioritizedCompactionComparable) r).getTimestamp();
-            }
-            else
-            {
-                logger.warn("Runnable {} is not an prioritized compaction task {}", r, r.getClass());
-                return 0L;
+                return Priorities.DEFAULT;
             }
         }
     }
