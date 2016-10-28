@@ -24,51 +24,26 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class PrioritizedCompactionFutureTask<T> extends FutureTask<T> implements IPrioritizedCompactionComparable
+public class PrioritizedCompactionFutureTask<T> extends FutureTask<T> // implements IPrioritizedCompactionComparable
 {
-    final int compactionTypePriority;
-    final long compactionSubTypePriority;
-    final long taskTimestamp;
+    final Priorities priorities;
 
-    public PrioritizedCompactionFutureTask(Callable<T> callable, int typePriority, long subTypePriority)
+    public PrioritizedCompactionFutureTask(Callable<T> callable, Priorities priorities)
     {
         super(callable);
-        this.compactionTypePriority = typePriority;
-        this.compactionSubTypePriority = subTypePriority;
-        this.taskTimestamp = System.currentTimeMillis();
+        this.priorities = priorities;
     }
 
-    public PrioritizedCompactionFutureTask(Runnable runnable, T value, int typePriority, long subTypePriority)
+    public PrioritizedCompactionFutureTask(Runnable runnable, T value, Priorities priorities)
     {
         super(runnable, value);
-        this.compactionTypePriority = typePriority;
-        this.compactionSubTypePriority = subTypePriority;
-        this.taskTimestamp = System.currentTimeMillis();
-    }
-
-
-    public int getTypePriority()
-    {
-        return compactionTypePriority;
-    }
-
-    public long getSubTypePriority()
-    {
-        return compactionSubTypePriority;
-    }
-
-    public long getTimestamp()
-    {
-        return taskTimestamp;
+        this.priorities = priorities;
     }
 
     @Override
     public String toString()
     {
-        return String.format("PrioritizedCompactionFutureTask(TypePriority=%s,SubTypePriority=%s,Timestamp=%s",
-                             compactionTypePriority,
-                             compactionSubTypePriority,
-                             taskTimestamp);
+        return String.format("PrioritizedCompactionFutureTask(%s)", priorities);
     }
 
 }

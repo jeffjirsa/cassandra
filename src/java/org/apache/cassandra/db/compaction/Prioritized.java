@@ -19,13 +19,7 @@
 
 package org.apache.cassandra.db.compaction;
 
-public interface IPrioritizedCompactionComparable
+public interface Prioritized
 {
-
-    int getTypePriority();
-
-    long getSubTypePriority();
-
-    long getTimestamp();
-
+    Priorities getPriorities();
 }

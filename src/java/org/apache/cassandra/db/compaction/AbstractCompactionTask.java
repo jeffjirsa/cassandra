@@ -28,15 +28,13 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 
-public abstract class AbstractCompactionTask extends WrappedRunnable implements IPrioritizedCompactionComparable
+public abstract class AbstractCompactionTask extends WrappedRunnable implements Prioritized
 {
     protected final ColumnFamilyStore cfs;
     protected LifecycleTransaction transaction;
     protected boolean isUserDefined;
     protected OperationType compactionType;
-    protected int compactionTypePriority;
-    protected long compactionSubTypePriority;
-    protected long taskTimestamp;
+    protected Priorities priorities;
 
     /**
      * @param cfs
@@ -48,7 +46,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable implements 
         this.transaction = transaction;
         this.isUserDefined = false;
         this.compactionType = OperationType.COMPACTION;
-        this.taskTimestamp = System.currentTimeMillis();
+        this.priorities = new Priorities(compactionType.priority(), 0, System.currentTimeMillis());
         // enforce contract that caller should mark sstables compacting
         Set<SSTableReader> compacting = transaction.tracker.getCompacting();
         for (SSTableReader sstable : transaction.originals())
@@ -88,37 +86,25 @@ public abstract class AbstractCompactionTask extends WrappedRunnable implements 
     public AbstractCompactionTask setCompactionType(OperationType compactionType)
     {
         this.compactionType = compactionType;
-        this.compactionTypePriority = compactionType.priority();
-        this.compactionSubTypePriority = 0L;
+        this.priorities = new Priorities(compactionType.priority(), 0, priorities.timestamp);
         return this;
     }
 
     public AbstractCompactionTask withPriority(int opTypePriority)
     {
-        this.compactionTypePriority = opTypePriority;
+        this.priorities = new Priorities(opTypePriority, 0, priorities.timestamp);
         return this;
     }
 
     public AbstractCompactionTask withPriority(int opTypePriority, long subPriority)
     {
-        this.compactionTypePriority = opTypePriority;
-        this.compactionSubTypePriority = subPriority;
+        this.priorities = new Priorities(opTypePriority, subPriority, priorities.timestamp);
         return this;
     }
 
-    public int getTypePriority()
+    public Priorities getPriorities()
     {
-        return compactionTypePriority;
-    }
-
-    public long getSubTypePriority()
-    {
-        return compactionSubTypePriority;
-    }
-
-    public long getTimestamp()
-    {
-        return taskTimestamp;
+        return priorities;
     }
 
     public String toString()

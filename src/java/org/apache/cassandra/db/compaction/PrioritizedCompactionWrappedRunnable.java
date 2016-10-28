@@ -21,52 +21,29 @@ package org.apache.cassandra.db.compaction;
 
 import org.apache.cassandra.utils.WrappedRunnable;
 
-abstract public class PrioritizedCompactionWrappedRunnable extends WrappedRunnable implements IPrioritizedCompactionComparable
+abstract public class PrioritizedCompactionWrappedRunnable extends WrappedRunnable implements Prioritized
 {
-
-    protected final int compactionTypePriority;
-    protected final long compactionSubTypePriority;
-    protected final long timestamp;
-
+    protected final Priorities priorities;
 
     protected PrioritizedCompactionWrappedRunnable(int typePriority)
     {
         super();
-        this.compactionTypePriority = typePriority;
-        this.compactionSubTypePriority = 0;
-        this.timestamp = System.currentTimeMillis();
+        priorities = new Priorities(typePriority);
     }
 
     protected PrioritizedCompactionWrappedRunnable(int typePriority, long subTypePriority)
     {
         super();
-        this.compactionTypePriority = typePriority;
-        this.compactionSubTypePriority = subTypePriority;
-        this.timestamp = System.currentTimeMillis();
+        priorities = new Priorities(typePriority, subTypePriority);
     }
 
-    public int getTypePriority()
+    public Priorities getPriorities()
     {
-        return compactionTypePriority;
+        return priorities;
     }
-
-    public long getSubTypePriority()
-    {
-        return compactionSubTypePriority;
-    }
-
-    public long getTimestamp()
-    {
-        return timestamp;
-    }
-
 
     public String toString()
     {
-        return String.format("PrioritizedCompactionWrappedRunnable(TypePriority=%s,SubTypePriority=%s,Timestamp=%s",
-                             compactionTypePriority,
-                             compactionSubTypePriority,
-                             timestamp);
+        return String.format("PrioritizedCompactionWrappedRunnable(%s)", priorities);
     }
-
 }

@@ -19,50 +19,29 @@
 
 package org.apache.cassandra.db.compaction;
 
-abstract public class PrioritizedCompactionRunnable implements Runnable, IPrioritizedCompactionComparable
+abstract public class PrioritizedCompactionRunnable implements Runnable, Prioritized
 {
-    protected final int compactionTypePriority;
-    protected final long compactionSubTypePriority;
-    protected final long timestamp;
-
+    protected final Priorities priorities;
 
     protected PrioritizedCompactionRunnable(int typePriority)
     {
         super();
-        this.compactionTypePriority = typePriority;
-        this.compactionSubTypePriority = 0;
-        this.timestamp = System.currentTimeMillis();
+        this.priorities = new Priorities(typePriority);
     }
 
     protected PrioritizedCompactionRunnable(int typePriority, long subTypePriority)
     {
         super();
-        this.compactionTypePriority = typePriority;
-        this.compactionSubTypePriority = subTypePriority;
-        this.timestamp = System.currentTimeMillis();
+        this.priorities = new Priorities(typePriority, subTypePriority);
     }
 
-    public int getTypePriority()
+    public Priorities getPriorities()
     {
-        return compactionTypePriority;
-    }
-
-    public long getSubTypePriority()
-    {
-        return compactionSubTypePriority;
-    }
-
-    public long getTimestamp()
-    {
-        return timestamp;
+        return priorities;
     }
 
     public String toString()
     {
-        return String.format("PrioritizedCompactionRunnable(TypePriority=%s,SubTypePriority=%s,Timestamp=%s",
-                             compactionTypePriority,
-                             compactionSubTypePriority,
-                             timestamp);
+        return String.format("PrioritizedCompactionRunnable(%s)", priorities);
     }
-
 }

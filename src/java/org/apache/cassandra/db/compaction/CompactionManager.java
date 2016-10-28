@@ -31,7 +31,6 @@ import javax.management.openmbean.TabularData;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
-import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -237,34 +236,20 @@ public class CompactionManager implements CompactionManagerMBean
 
     // the actual sstables to compact are not determined until we run the BCT; that way, if new sstables
     // are created between task submission and execution, we execute against the most up-to-date information
-    class BackgroundCompactionCandidate implements Runnable, IPrioritizedCompactionComparable
+    class BackgroundCompactionCandidate implements Runnable, Prioritized
     {
         private final ColumnFamilyStore cfs;
-        private int compactionTypePriority;
-        private long compactionSubtypePriority;
-        private long taskTimestamp;
+        private Priorities priorities;
 
         BackgroundCompactionCandidate(ColumnFamilyStore cfs)
         {
             this.cfs = cfs;
-            this.taskTimestamp = System.currentTimeMillis();
-            this.compactionTypePriority = OperationType.COMPACTION.priority();
-            this.compactionSubtypePriority = 0L;
+            priorities = new Priorities(OperationType.COMPACTION.priority(), 0);
         }
 
-        public int getTypePriority()
+        public Priorities getPriorities()
         {
-            return this.compactionTypePriority;
-        }
-
-        public long getSubTypePriority()
-        {
-            return this.compactionSubtypePriority;
-        }
-
-        public long getTimestamp()
-        {
-            return this.taskTimestamp;
+            return priorities;
         }
 
         public void run()
@@ -285,8 +270,7 @@ public class CompactionManager implements CompactionManagerMBean
                     logger.trace("No tasks available");
                     return;
                 }
-                this.compactionTypePriority = task.getTypePriority();
-                this.compactionSubtypePriority = task.getSubTypePriority();
+                this.priorities = task.getPriorities();
                 task.execute(metrics);
             }
             finally
@@ -1759,19 +1743,19 @@ public class CompactionManager implements CompactionManagerMBean
         // We override newTaskFor to return a future with access to priority
         protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value)
         {
-            if(runnable instanceof IPrioritizedCompactionComparable)
-                return new PrioritizedCompactionFutureTask<T>(runnable, value, ((IPrioritizedCompactionComparable) runnable).getTypePriority(), ((IPrioritizedCompactionComparable) runnable).getSubTypePriority());
+            if(runnable instanceof Prioritized)
+                return new PrioritizedCompactionFutureTask<>(runnable, value, ((Prioritized)runnable).getPriorities());
             else
-                return new FutureTask<T>(runnable, value);
+                return new FutureTask<>(runnable, value);
         }
 
         // We override newTaskFor to return a future with access to priority
         protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable)
         {
-            if(callable instanceof IPrioritizedCompactionComparable)
-                return new PrioritizedCompactionFutureTask<T>(callable, ((IPrioritizedCompactionComparable)callable).getTypePriority(), ((IPrioritizedCompactionComparable)callable).getSubTypePriority());
+            if(callable instanceof Prioritized)
+                return new PrioritizedCompactionFutureTask<>(callable, ((Prioritized)callable).getPriorities());
             else
-                return new FutureTask<T>(callable);
+                return new FutureTask<>(callable);
         }
 
         protected void beforeExecute(Thread t, Runnable r)
@@ -1854,52 +1838,12 @@ public class CompactionManager implements CompactionManagerMBean
 
     static class CompactionPriorityComparator implements Comparator<Runnable>
     {
-        private static class Priorities implements Comparable<Priorities>
-        {
-            private static final Priorities DEFAULT = new Priorities(0, 0, 0);
-            private final int type;
-            private final long subtype;
-            private final long timestamp;
-
-            Priorities(IPrioritizedCompactionComparable prioritized)
-            {
-                this.type = prioritized.getTypePriority();
-                this.subtype = prioritized.getSubTypePriority();
-                this.timestamp = prioritized.getTimestamp();
-            }
-
-            Priorities(int type, long subtype, long timestamp)
-            {
-                this.type = type;
-                this.subtype = subtype;
-                this.timestamp = timestamp;
-            }
-
-            public int compareTo(Priorities o)
-            {
-                if (type > o.type)
-                    return -1;
-                if (type < o.type)
-                    return 1;
-                if (subtype > o.subtype)
-                    return -1;
-                if (subtype < o.subtype)
-                    return 1;
-
-                // If same op type, and same sub priority
-                // Favor the task with the lowest timestamp
-                return timestamp < o.timestamp
-                       ? -1
-                       : timestamp > o.timestamp ? 1 : 0;
-            }
-        }
-
         @Override
         public int compare(Runnable r1, Runnable r2)
         {
-            if(r1 == null && r2 == null)
+            if (r1 == null && r2 == null)
                 return 0;
-            else if(r1 == null)
+            else if (r1 == null)
                 return 1;
             else if (r2 == null)
                 return -1;
@@ -1909,9 +1853,9 @@ public class CompactionManager implements CompactionManagerMBean
 
         private Priorities getPrioritiesForRunnable(Runnable r)
         {
-            if (r instanceof IPrioritizedCompactionComparable)
+            if (r instanceof Prioritized)
             {
-                return new Priorities((IPrioritizedCompactionComparable)r);
+                return ((Prioritized)r).getPriorities();
             }
             else
             {

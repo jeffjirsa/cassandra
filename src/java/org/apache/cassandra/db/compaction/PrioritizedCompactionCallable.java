@@ -21,49 +21,29 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.concurrent.Callable;
 
-abstract public class PrioritizedCompactionCallable<V> implements Callable<V>, IPrioritizedCompactionComparable
+abstract public class PrioritizedCompactionCallable<V> implements Callable<V>, Prioritized
 {
-    final int compactionTypePriority;
-    final long compactionSubTypePriority;
-    final long timestamp;
+    final Priorities priorities;
 
     protected PrioritizedCompactionCallable(int typePriority)
     {
         super();
-        this.compactionTypePriority = typePriority;
-        this.compactionSubTypePriority = 0;
-        this.timestamp = System.currentTimeMillis();
+        priorities = new Priorities(typePriority);
     }
 
     protected PrioritizedCompactionCallable(int typePriority, long subTypePriority)
     {
         super();
-        this.compactionTypePriority = typePriority;
-        this.compactionSubTypePriority = subTypePriority;
-        this.timestamp = System.currentTimeMillis();
+        priorities = new Priorities(typePriority, subTypePriority);
     }
 
-    public int getTypePriority()
+    public Priorities getPriorities()
     {
-        return compactionTypePriority;
-    }
-
-    public long getSubTypePriority()
-    {
-        return compactionSubTypePriority;
-    }
-
-    public long getTimestamp()
-    {
-        return timestamp;
+        return priorities;
     }
 
     public String toString()
     {
-        return String.format("PrioritizedCompactionCallable(TypePriority=%s,SubTypePriority=%s,Timestamp=%s",
-                             compactionTypePriority,
-                             compactionSubTypePriority,
-                             timestamp);
+        return String.format("PrioritizedCompactionCallable(%s)", priorities);
     }
-
 }
