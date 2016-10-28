@@ -74,7 +74,7 @@ public enum OperationType
 
     public final String type;
     public final String fileName;
-    private final int defaultPriority;
+    protected final int defaultPriority;
 
     OperationType(String type, int defaultPriority)
     {
