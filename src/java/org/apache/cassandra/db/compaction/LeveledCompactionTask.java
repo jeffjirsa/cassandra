@@ -40,7 +40,7 @@ public class LeveledCompactionTask extends CompactionTask
         this.maxSSTableBytes = maxSSTableBytes;
         this.majorCompaction = majorCompaction;
         this.compactionTypePriority = OperationType.COMPACTION.priority();
-        this.compactionSubTypePriorty = txn.bytesOnDisk();
+        this.compactionSubTypePriority = txn.bytesOnDisk();
     }
 
     @Override

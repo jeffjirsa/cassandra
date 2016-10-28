@@ -17,40 +17,20 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.PriorityBlockingQueue;
 
-import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.compaction.CompactionManager.*;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.CompactionParams;
-import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.db.compaction.CompactionManager.CompactionPriorityComparator;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
 public class CompactionPriorityTest
 {
     @Test
     public void testPrioritization()
     {
-        PriorityBlockingQueue<Runnable> priorityBlockingQueue = new PriorityBlockingQueue(10, new CompactionPriorityComparator());
+        PriorityBlockingQueue<Runnable> priorityBlockingQueue = new PriorityBlockingQueue<>(10, new CompactionPriorityComparator());
 
         // Queue up a bunch of stub runnables of various types priorities
         priorityBlockingQueue.add(new PrioritizedCompactionWrappedRunnable(OperationType.COMPACTION.priority())
@@ -150,10 +130,5 @@ public class CompactionPriorityTest
         assertEquals(8, r.hashCode()); // Cleanup (behind scrub due to timestamps)
         r = priorityBlockingQueue.poll();
         assertEquals(4, r.hashCode()); // Verify
-
-
-        return;
     }
-
-
 }

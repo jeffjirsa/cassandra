@@ -1748,7 +1748,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         private CompactionExecutor(int threadCount, String name)
         {
-            this(threadCount, threadCount, name, new PriorityBlockingQueue<Runnable>(threadCount, new CompactionPriorityComparator()));
+            this(threadCount, threadCount, name, new PriorityBlockingQueue<>(threadCount, new CompactionPriorityComparator()));
         }
 
         public CompactionExecutor()

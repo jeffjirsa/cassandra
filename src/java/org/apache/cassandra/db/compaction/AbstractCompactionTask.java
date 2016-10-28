@@ -35,7 +35,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable implements 
     protected boolean isUserDefined;
     protected OperationType compactionType;
     protected int compactionTypePriority;
-    protected long compactionSubTypePriorty;
+    protected long compactionSubTypePriority;
     protected long taskTimestamp;
 
     /**
@@ -89,7 +89,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable implements 
     {
         this.compactionType = compactionType;
         this.compactionTypePriority = compactionType.priority();
-        this.compactionSubTypePriorty = 0L;
+        this.compactionSubTypePriority = 0L;
         return this;
     }
 
@@ -102,7 +102,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable implements 
     public AbstractCompactionTask withPriority(int opTypePriority, long subPriority)
     {
         this.compactionTypePriority = opTypePriority;
-        this.compactionSubTypePriorty = subPriority;
+        this.compactionSubTypePriority = subPriority;
         return this;
     }
 
@@ -113,7 +113,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable implements 
 
     public long getSubTypePriority()
     {
-        return compactionSubTypePriorty;
+        return compactionSubTypePriority;
     }
 
     public long getTimestamp()
