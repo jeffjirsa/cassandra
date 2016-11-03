@@ -28,10 +28,22 @@ public class PrioritizedCompactionFutureTask<T> extends FutureTask<T> // impleme
 {
     final Priorities priorities;
 
+    public PrioritizedCompactionFutureTask(Callable<T> callable)
+    {
+        super(callable);
+        this.priorities = Priorities.DEFAULT;
+    }
+
     public PrioritizedCompactionFutureTask(Callable<T> callable, Priorities priorities)
     {
         super(callable);
         this.priorities = priorities;
+    }
+
+    public PrioritizedCompactionFutureTask(Runnable runnable, T value)
+    {
+        super(runnable, value);
+        this.priorities = Priorities.DEFAULT;
     }
 
     public PrioritizedCompactionFutureTask(Runnable runnable, T value, Priorities priorities)

@@ -244,7 +244,7 @@ public class CompactionManager implements CompactionManagerMBean
         BackgroundCompactionCandidate(ColumnFamilyStore cfs)
         {
             this.cfs = cfs;
-            priorities = new Priorities(OperationType.COMPACTION.priority(), 0);
+            priorities = new Priorities(OperationType.COMPACTION.priority());
         }
 
         public Priorities getPriorities()
@@ -1183,7 +1183,7 @@ public class CompactionManager implements CompactionManagerMBean
             public Bounded(final ColumnFamilyStore cfs, Collection<Range<Token>> ranges, int nowInSec)
             {
                 super(ranges, nowInSec);
-                cacheCleanupExecutor.submit(new Runnable()
+                cacheCleanupExecutor.submit(new PrioritizedCompactionRunnable(OperationType.CLEANUP.priority())
                 {
                     @Override
                     public void run()
@@ -1746,7 +1746,7 @@ public class CompactionManager implements CompactionManagerMBean
             if(runnable instanceof Prioritized)
                 return new PrioritizedCompactionFutureTask<>(runnable, value, ((Prioritized)runnable).getPriorities());
             else
-                return new FutureTask<>(runnable, value);
+                return new PrioritizedCompactionFutureTask<>(runnable, value);
         }
 
         // We override newTaskFor to return a future with access to priority
@@ -1755,7 +1755,7 @@ public class CompactionManager implements CompactionManagerMBean
             if(callable instanceof Prioritized)
                 return new PrioritizedCompactionFutureTask<>(callable, ((Prioritized)callable).getPriorities());
             else
-                return new FutureTask<>(callable);
+                return new PrioritizedCompactionFutureTask<>(callable);
         }
 
         protected void beforeExecute(Thread t, Runnable r)
@@ -1853,15 +1853,8 @@ public class CompactionManager implements CompactionManagerMBean
 
         private Priorities getPrioritiesForRunnable(Runnable r)
         {
-            if (r instanceof Prioritized)
-            {
-                return ((Prioritized)r).getPriorities();
-            }
-            else
-            {
-                logger.warn("Runnable {} is not an prioritized compaction task {}", r, r.getClass());
-                return Priorities.DEFAULT;
-            }
+            assert r instanceof Prioritized;
+            return ((Prioritized)r).getPriorities();
         }
     }
 

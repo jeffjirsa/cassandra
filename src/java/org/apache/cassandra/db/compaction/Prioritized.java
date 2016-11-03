@@ -19,6 +19,10 @@
 
 package org.apache.cassandra.db.compaction;
 
+/**
+ * Prioritized provides a single method that returns Priorities,
+ * a Comparable required by the use in the CompactionManager.CompactionExecutor
+ **/
 public interface Prioritized
 {
     Priorities getPriorities();

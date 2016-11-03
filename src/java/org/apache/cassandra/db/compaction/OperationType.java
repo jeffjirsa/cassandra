@@ -17,10 +17,23 @@
  */
 package org.apache.cassandra.db.compaction;
 
+/*
+ * The OperationType enum allows for naming internal operations,
+ * typically compactions, and provides for prioritization as needed.
+ *
+ * Operations that run on the {@link CompactionManager.CompactionExecutor}
+ * will utilize the priorities here to sort compaction tasks using
+ * a priority queue (via {@link Priorities}).
+ *
+ * Some operations, such as WRITE/STREAM/FLUSH/UNKNOWN do
+ * not execute on that executor - priorities for those are
+ * ignored.
+ */
 public enum OperationType
 {
     COMPACTION("Compaction", 128),
-    VALIDATION("Validation", 256),
+    /** Validation runs on its own executor, priority is ignored */
+    VALIDATION("Validation", Integer.MAX_VALUE),
     KEY_CACHE_SAVE("Key cache save", 256),
     ROW_CACHE_SAVE("Row cache save", 256),
     COUNTER_CACHE_SAVE("Counter cache save", 256),
@@ -65,6 +78,7 @@ public enum OperationType
         }
     },
     VIEW_BUILD("View build", 512),
+    /** Index summary redistribution runs on it's own executor, priority is ignored */
     INDEX_SUMMARY("Index summary redistribution", Integer.MAX_VALUE),
     USER_DEFINED_COMPACTION("User defined compaction", 192),
     RELOCATE("Relocate sstables to correct disk", 192),

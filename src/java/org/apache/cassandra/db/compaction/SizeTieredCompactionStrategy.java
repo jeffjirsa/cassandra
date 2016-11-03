@@ -185,7 +185,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
             LifecycleTransaction transaction = cfs.getTracker().tryModify(hottestBucket, OperationType.COMPACTION);
             if (transaction != null)
-                return new CompactionTask(cfs, transaction, gcBefore).withPriority(OperationType.COMPACTION.priority(), transaction.bytesOnDisk());
+                return new CompactionTask(cfs, transaction, gcBefore).withPriority(OperationType.COMPACTION.priority());
         }
     }
 
@@ -199,8 +199,8 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         if (txn == null)
             return null;
         if (splitOutput)
-            return Arrays.<AbstractCompactionTask>asList(new SplittingCompactionTask(cfs, txn, gcBefore).withPriority(OperationType.COMPACTION.priority(), txn.bytesOnDisk()));
-        return Arrays.<AbstractCompactionTask>asList(new CompactionTask(cfs, txn, gcBefore).withPriority(OperationType.COMPACTION.priority(), txn.bytesOnDisk()));
+            return Arrays.<AbstractCompactionTask>asList(new SplittingCompactionTask(cfs, txn, gcBefore).withPriority(OperationType.COMPACTION.priority()));
+        return Arrays.<AbstractCompactionTask>asList(new CompactionTask(cfs, txn, gcBefore).withPriority(OperationType.COMPACTION.priority()));
     }
 
     @SuppressWarnings("resource")
@@ -215,7 +215,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
             return null;
         }
 
-        return new CompactionTask(cfs, transaction, gcBefore).withPriority(OperationType.USER_DEFINED_COMPACTION.priority(), transaction.bytesOnDisk()).setUserDefined(true);
+        return new CompactionTask(cfs, transaction, gcBefore).withPriority(OperationType.USER_DEFINED_COMPACTION.priority()).setUserDefined(true);
     }
 
     public int getEstimatedRemainingTasks()
