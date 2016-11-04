@@ -20,13 +20,28 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.concurrent.Callable;
+import java.util.concurrent.Executor;
 import java.util.concurrent.FutureTask;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
-public class PrioritizedCompactionFutureTask<T> extends FutureTask<T> // implements IPrioritizedCompactionComparable
+import com.google.common.util.concurrent.ExecutionList;
+import com.google.common.util.concurrent.ListenableFuture;
+
+public class PrioritizedCompactionFutureTask<T> extends FutureTask<T> implements ListenableFuture<T>, Prioritized
 {
     final Priorities priorities;
+    final ExecutionList listeners = new ExecutionList();
+
+    public PrioritizedCompactionFutureTask(PrioritizedCompactionCallable<T> callable)
+    {
+        super(callable);
+        this.priorities = callable.getPriorities();
+    }
+
+    public PrioritizedCompactionFutureTask(Callable<T> callable, Priorities priorities)
+    {
+        super(callable);
+        this.priorities = priorities;
+    }
 
     public PrioritizedCompactionFutureTask(Callable<T> callable)
     {
@@ -34,10 +49,16 @@ public class PrioritizedCompactionFutureTask<T> extends FutureTask<T> // impleme
         this.priorities = Priorities.DEFAULT;
     }
 
-    public PrioritizedCompactionFutureTask(Callable<T> callable, Priorities priorities)
+    public PrioritizedCompactionFutureTask(PrioritizedCompactionRunnable runnable, T value)
     {
-        super(callable);
-        this.priorities = priorities;
+        super(runnable, value);
+        this.priorities = runnable.getPriorities();
+    }
+
+    public PrioritizedCompactionFutureTask(PrioritizedCompactionWrappedRunnable runnable, T value)
+    {
+        super(runnable, value);
+        this.priorities = runnable.getPriorities();
     }
 
     public PrioritizedCompactionFutureTask(Runnable runnable, T value)
@@ -56,6 +77,29 @@ public class PrioritizedCompactionFutureTask<T> extends FutureTask<T> // impleme
     public String toString()
     {
         return String.format("PrioritizedCompactionFutureTask(%s)", priorities);
+    }
+
+    public Priorities getPriorities()
+    {
+        return priorities;
+    }
+
+
+    // addListener(runnable, executor) and done() enable this to implement RunnableFuture
+    // which is necessary for some compaction tasks (AntiCompaction for example). However,
+    // we cannot simply wrap a compaction task via ListenableFutureTask::create as the
+    // prioritized aspect of the task gets lost. The most natural solution would be to
+    // extend ListenableFutureTask, but its constructors are package private, so we do
+    // this instead.
+    public void addListener(Runnable runnable, Executor executor)
+    {
+        listeners.add(runnable, executor);
+    }
+
+    @Override
+    protected void done()
+    {
+        listeners.execute();
     }
 
 }
