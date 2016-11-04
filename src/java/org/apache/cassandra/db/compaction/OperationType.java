@@ -17,84 +17,37 @@
  */
 package org.apache.cassandra.db.compaction;
 
-/*
- * The OperationType enum allows for naming internal operations,
- * typically compactions, and provides for prioritization as needed.
- *
- * Operations that run on the {@link CompactionManager.CompactionExecutor}
- * will utilize the priorities here to sort compaction tasks using
- * a priority queue (via {@link Priorities}).
- *
- * Some operations, such as WRITE/STREAM/FLUSH/UNKNOWN do
- * not execute on that executor - priorities for those are
- * ignored.
- */
 public enum OperationType
 {
-    COMPACTION("Compaction", 128),
-    /** Validation runs on its own executor, priority is ignored */
-    VALIDATION("Validation", Integer.MAX_VALUE),
-    KEY_CACHE_SAVE("Key cache save", 256),
-    ROW_CACHE_SAVE("Row cache save", 256),
-    COUNTER_CACHE_SAVE("Counter cache save", 256),
-    CLEANUP("Cleanup", 64),
-    SCRUB("Scrub", 64),
-    UPGRADE_SSTABLES("Upgrade sstables", 64),
-    INDEX_BUILD("Secondary index build", 512),
+    COMPACTION("Compaction"),
+    VALIDATION("Validation"),
+    KEY_CACHE_SAVE("Key cache save"),
+    ROW_CACHE_SAVE("Row cache save"),
+    COUNTER_CACHE_SAVE("Counter cache save"),
+    CLEANUP("Cleanup"),
+    SCRUB("Scrub"),
+    UPGRADE_SSTABLES("Upgrade sstables"),
+    INDEX_BUILD("Secondary index build"),
     /** Compaction for tombstone removal */
-    TOMBSTONE_COMPACTION("Tombstone Compaction", 96),
-    UNKNOWN("Unknown compaction type", Integer.MAX_VALUE)
-    {
-        @Override
-        public int priority()
-        {
-            return this.defaultPriority;
-        }
-    },
-    ANTICOMPACTION("Anticompaction after repair", 1024),
-    VERIFY("Verify", 1),
-    FLUSH("Flush", Integer.MAX_VALUE)
-    {
-        @Override
-        public int priority()
-        {
-            return this.defaultPriority;
-        }
-    },
-    STREAM("Stream", Integer.MAX_VALUE)
-    {
-        @Override
-        public int priority()
-        {
-            return this.defaultPriority;
-        }
-    },
-    WRITE("Write", Integer.MAX_VALUE)
-    {
-        @Override
-        public int priority()
-        {
-            return this.defaultPriority;
-        }
-    },
-    VIEW_BUILD("View build", 512),
-    /** Index summary redistribution runs on it's own executor, priority is ignored */
-    INDEX_SUMMARY("Index summary redistribution", Integer.MAX_VALUE),
-    USER_DEFINED_COMPACTION("User defined compaction", 192),
-    RELOCATE("Relocate sstables to correct disk", 192),
-    GARBAGE_COLLECT("Remove deleted data", 96);
-
-    private static final String priorityPropertyRoot = "cassandra.compaction.priority.";
+    TOMBSTONE_COMPACTION("Tombstone Compaction"),
+    UNKNOWN("Unknown compaction type"),
+    ANTICOMPACTION("Anticompaction after repair"),
+    VERIFY("Verify"),
+    FLUSH("Flush"),
+    STREAM("Stream"),
+    WRITE("Write"),
+    VIEW_BUILD("View build"),
+    INDEX_SUMMARY("Index summary redistribution"),
+    RELOCATE("Relocate sstables to correct disk"),
+    GARBAGE_COLLECT("Remove deleted data");
 
     public final String type;
     public final String fileName;
-    protected final int defaultPriority;
 
-    OperationType(String type, int defaultPriority)
+    OperationType(String type)
     {
         this.type = type;
         this.fileName = type.toLowerCase().replace(" ", "");
-        this.defaultPriority = defaultPriority;
     }
 
     public static OperationType fromFileName(String fileName)
@@ -104,11 +57,6 @@ public enum OperationType
                 return opType;
 
         throw new IllegalArgumentException("Invalid fileName for operation type: " + fileName);
-    }
-
-    public int priority()
-    {
-        return Math.max(Integer.getInteger(priorityPropertyRoot + name().toLowerCase(), defaultPriority), 1);
     }
 
     public String toString()

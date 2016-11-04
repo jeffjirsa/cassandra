@@ -239,12 +239,12 @@ public class CompactionManager implements CompactionManagerMBean
     class BackgroundCompactionCandidate implements Runnable, Prioritized
     {
         private final ColumnFamilyStore cfs;
-        private Priorities priorities;
+        private final Priorities priorities;
 
         BackgroundCompactionCandidate(ColumnFamilyStore cfs)
         {
             this.cfs = cfs;
-            priorities = new Priorities(OperationType.COMPACTION.priority());
+            priorities = new Priorities(TaskPriority.COMPACTION);
         }
 
         public Priorities getPriorities()
@@ -291,7 +291,11 @@ public class CompactionManager implements CompactionManagerMBean
      * @throws InterruptedException
      */
     @SuppressWarnings("resource")
-    private AllSSTableOpStatus parallelAllSSTableOperation(final ColumnFamilyStore cfs, final OneSSTableOperation operation, int jobs, OperationType operationType) throws ExecutionException, InterruptedException
+    private AllSSTableOpStatus parallelAllSSTableOperation(final ColumnFamilyStore cfs,
+                                                           final OneSSTableOperation operation,
+                                                           int jobs,
+                                                           OperationType operationType,
+                                                           TaskPriority priority)
     {
         List<LifecycleTransaction> transactions = new ArrayList<>();
         try (LifecycleTransaction compacting = cfs.markAllCompacting(operationType))
@@ -309,7 +313,7 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 final LifecycleTransaction txn = compacting.split(singleton(sstable));
                 transactions.add(txn);
-                Callable<Object> callable = new PrioritizedCompactionCallable<Object>(operationType.priority())
+                Callable<Object> callable = new PrioritizedCompactionCallable<Object>(priority)
                 {
                     @Override
                     public Object call() throws Exception
@@ -373,7 +377,7 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 scrubOne(cfs, input, skipCorrupted, checkData);
             }
-        }, jobs, OperationType.SCRUB);
+        }, jobs, OperationType.SCRUB, TaskPriority.SCRUB);
     }
 
     public AllSSTableOpStatus performVerify(final ColumnFamilyStore cfs, final boolean extendedVerify) throws InterruptedException, ExecutionException
@@ -392,7 +396,7 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 verifyOne(cfs, input.onlyOne(), extendedVerify);
             }
-        }, 0, OperationType.VERIFY);
+        }, 0, OperationType.VERIFY, TaskPriority.VERIFY);
     }
 
     public AllSSTableOpStatus performSSTableRewrite(final ColumnFamilyStore cfs, final boolean excludeCurrentVersion, int jobs) throws InterruptedException, ExecutionException
@@ -424,7 +428,7 @@ public class CompactionManager implements CompactionManagerMBean
                 task.setCompactionType(OperationType.UPGRADE_SSTABLES);
                 task.execute(metrics);
             }
-        }, jobs, OperationType.UPGRADE_SSTABLES);
+        }, jobs, OperationType.UPGRADE_SSTABLES, TaskPriority.UPGRADE_SSTABLES);
     }
 
     public AllSSTableOpStatus performCleanup(final ColumnFamilyStore cfStore, int jobs) throws InterruptedException, ExecutionException
@@ -460,7 +464,7 @@ public class CompactionManager implements CompactionManagerMBean
                 CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfStore, ranges, FBUtilities.nowInSeconds());
                 doCleanupOne(cfStore, txn, cleanupStrategy, ranges, hasIndexes);
             }
-        }, jobs, OperationType.CLEANUP);
+        }, jobs, OperationType.CLEANUP, TaskPriority.CLEANUP);
     }
 
     public AllSSTableOpStatus performGarbageCollection(final ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs) throws InterruptedException, ExecutionException
@@ -496,7 +500,7 @@ public class CompactionManager implements CompactionManagerMBean
                 task.setCompactionType(OperationType.GARBAGE_COLLECT);
                 task.execute(metrics);
             }
-        }, jobs, OperationType.GARBAGE_COLLECT);
+        }, jobs, OperationType.GARBAGE_COLLECT, TaskPriority.GARBAGE_COLLECT);
     }
 
     public AllSSTableOpStatus relocateSSTables(final ColumnFamilyStore cfs, int jobs) throws ExecutionException, InterruptedException
@@ -567,7 +571,7 @@ public class CompactionManager implements CompactionManagerMBean
                 task.setCompactionType(OperationType.RELOCATE);
                 task.execute(metrics);
             }
-        }, jobs, OperationType.RELOCATE);
+        }, jobs, OperationType.RELOCATE, TaskPriority.RELOCATE);
     }
 
     public ListenableFuture<?> submitAntiCompaction(final ColumnFamilyStore cfs,
@@ -575,7 +579,7 @@ public class CompactionManager implements CompactionManagerMBean
                                           final Refs<SSTableReader> sstables,
                                           final long repairedAt)
     {
-        Runnable runnable = new PrioritizedCompactionWrappedRunnable(OperationType.ANTICOMPACTION.priority())
+        Runnable runnable = new PrioritizedCompactionWrappedRunnable(TaskPriority.ANTICOMPACTION)
         {
             @Override
             @SuppressWarnings("resource")
@@ -720,7 +724,7 @@ public class CompactionManager implements CompactionManagerMBean
             if (task.transaction.originals().size() > 0)
                 nonEmptyTasks++;
 
-            Runnable runnable = new PrioritizedCompactionWrappedRunnable(OperationType.COMPACTION.priority())
+            Runnable runnable = new PrioritizedCompactionWrappedRunnable(TaskPriority.COMPACTION)
             {
                 protected void runMayThrow()
                 {
@@ -755,7 +759,7 @@ public class CompactionManager implements CompactionManagerMBean
         if (tasks == null)
             return;
 
-        Runnable runnable = new PrioritizedCompactionWrappedRunnable(OperationType.COMPACTION.priority())
+        Runnable runnable = new PrioritizedCompactionWrappedRunnable(TaskPriority.COMPACTION)
         {
             protected void runMayThrow()
             {
@@ -870,7 +874,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public Future<?> submitUserDefined(final ColumnFamilyStore cfs, final Collection<Descriptor> dataFiles, final int gcBefore)
     {
-        Runnable runnable = new PrioritizedCompactionWrappedRunnable(OperationType.USER_DEFINED_COMPACTION.priority())
+        Runnable runnable = new PrioritizedCompactionWrappedRunnable(TaskPriority.USER_DEFINED_COMPACTION)
         {
             protected void runMayThrow()
             {
@@ -927,7 +931,7 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public Future<?> submitValidation(final ColumnFamilyStore cfStore, final Validator validator)
     {
-        Callable<Object> callable = new PrioritizedCompactionCallable<Object>(OperationType.VALIDATION.priority())
+        Callable<Object> callable = new PrioritizedCompactionCallable<Object>(TaskPriority.VALIDATION)
         {
             public Object call() throws IOException
             {
@@ -1182,7 +1186,7 @@ public class CompactionManager implements CompactionManagerMBean
             public Bounded(final ColumnFamilyStore cfs, Collection<Range<Token>> ranges, int nowInSec)
             {
                 super(ranges, nowInSec);
-                cacheCleanupExecutor.submit(new PrioritizedCompactionRunnable(OperationType.CLEANUP.priority())
+                cacheCleanupExecutor.submit(new PrioritizedCompactionRunnable(TaskPriority.CLEANUP)
                 {
                     @Override
                     public void run()
@@ -1580,7 +1584,7 @@ public class CompactionManager implements CompactionManagerMBean
      */
     public Future<?> submitIndexBuild(final SecondaryIndexBuilder builder)
     {
-        Runnable runnable = new PrioritizedCompactionRunnable(OperationType.INDEX_BUILD.priority())
+        Runnable runnable = new PrioritizedCompactionRunnable(TaskPriority.INDEX_BUILD)
         {
             public void run()
             {
@@ -1601,7 +1605,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public Future<?> submitCacheWrite(final AutoSavingCache.Writer writer)
     {
-        Runnable runnable = new PrioritizedCompactionRunnable(writer.type().priority())
+        Runnable runnable = new PrioritizedCompactionRunnable(TaskPriority.forCacheWrite(writer.type()))
         {
             public void run()
             {
@@ -1694,7 +1698,7 @@ public class CompactionManager implements CompactionManagerMBean
 
     public Future<?> submitViewBuilder(final ViewBuilder builder)
     {
-        Runnable runnable = new PrioritizedCompactionRunnable(OperationType.VIEW_BUILD.priority())
+        Runnable runnable = new PrioritizedCompactionRunnable(TaskPriority.VIEW_BUILD)
         {
             public void run()
             {
@@ -1835,11 +1839,11 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    static class CompactionPriorityComparator implements Comparator<Runnable>
+    static final class CompactionPriorityComparator implements Comparator<Runnable>
     {
-        @Override
         public int compare(Runnable r1, Runnable r2)
         {
+
             if (r1 == null && r2 == null)
                 return 0;
             else if (r1 == null)
@@ -1847,13 +1851,11 @@ public class CompactionManager implements CompactionManagerMBean
             else if (r2 == null)
                 return -1;
             else
-                return getPrioritiesForRunnable(r1).compareTo(getPrioritiesForRunnable(r2));
-        }
-
-        private Priorities getPrioritiesForRunnable(Runnable r)
-        {
-            assert r instanceof Prioritized;
-            return ((Prioritized)r).getPriorities();
+            {
+                assert r1 instanceof Prioritized;
+                assert r2 instanceof Prioritized;
+                return ((Prioritized) r1).getPriorities().compareTo(((Prioritized) r2).getPriorities());
+            }
         }
     }
 

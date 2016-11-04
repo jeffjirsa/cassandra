@@ -25,10 +25,10 @@ abstract public class PrioritizedCompactionCallable<V> implements Callable<V>, P
 {
     final Priorities priorities;
 
-    protected PrioritizedCompactionCallable(int typePriority)
+    protected PrioritizedCompactionCallable(TaskPriority priority)
     {
         super();
-        priorities = new Priorities(typePriority);
+        priorities = new Priorities(priority);
     }
 
     public Priorities getPriorities()

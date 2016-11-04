@@ -18,117 +18,138 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
-
-import org.apache.cassandra.db.compaction.CompactionManager.CompactionPriorityComparator;
 
 import static org.junit.Assert.assertEquals;
 
 public class CompactionPriorityTest
 {
     @Test
-    public void testPrioritization()
+    public void testPrioritization() throws InterruptedException
     {
-        PriorityBlockingQueue<Runnable> priorityBlockingQueue = new PriorityBlockingQueue<>(10, new CompactionPriorityComparator());
+        PriorityBlockingQueue<Runnable> blockingQueue =
+            new PriorityBlockingQueue<>(10, new CompactionManager.CompactionPriorityComparator());
 
-        // Queue up a bunch of stub runnables of various types priorities
-        priorityBlockingQueue.add(new PrioritizedCompactionWrappedRunnable(OperationType.COMPACTION.priority())
+        // Queue up a bunch of stub runnables of various types priorities, sleeping for 1ms between
+        // each to ensure their priorities have distinct timestamps
+        blockingQueue.add(new PrioritizedCompactionWrappedRunnable(TaskPriority.COMPACTION)
         {
             public int hashCode() { return 1; }
 
             protected void runMayThrow() throws Exception { }
         });
-        priorityBlockingQueue.add(new PrioritizedCompactionRunnable(OperationType.COMPACTION.priority())
+        TimeUnit.MILLISECONDS.sleep(1);
+
+        blockingQueue.add(new PrioritizedCompactionRunnable(TaskPriority.COMPACTION)
         {
             public int hashCode() { return 2; }
 
             public void run() { }
         });
-        priorityBlockingQueue.add(new PrioritizedCompactionWrappedRunnable(OperationType.SCRUB.priority())
+        TimeUnit.MILLISECONDS.sleep(1);
+
+        blockingQueue.add(new PrioritizedCompactionWrappedRunnable(TaskPriority.SCRUB)
         {
             public int hashCode() { return 3; }
 
             protected void runMayThrow() throws Exception { }
         });
-        priorityBlockingQueue.add(new PrioritizedCompactionWrappedRunnable(OperationType.VERIFY.priority())
+        TimeUnit.MILLISECONDS.sleep(1);
+
+        blockingQueue.add(new PrioritizedCompactionWrappedRunnable(TaskPriority.VERIFY)
         {
             public int hashCode() { return 4; }
 
             protected void runMayThrow() throws Exception { }
         });
-        priorityBlockingQueue.add(new PrioritizedCompactionWrappedRunnable(OperationType.ANTICOMPACTION.priority())
+        TimeUnit.MILLISECONDS.sleep(1);
+
+        blockingQueue.add(new PrioritizedCompactionWrappedRunnable(TaskPriority.ANTICOMPACTION)
         {
             public int hashCode() { return 5; }
 
             protected void runMayThrow() throws Exception { }
         });
-        priorityBlockingQueue.add(new PrioritizedCompactionWrappedRunnable(OperationType.INDEX_BUILD.priority())
+        TimeUnit.MILLISECONDS.sleep(1);
+
+        blockingQueue.add(new PrioritizedCompactionWrappedRunnable(TaskPriority.INDEX_BUILD)
         {
             public int hashCode() { return 6; }
 
             protected void runMayThrow() throws Exception { }
         });
-        priorityBlockingQueue.add(new PrioritizedCompactionWrappedRunnable(OperationType.KEY_CACHE_SAVE.priority())
+        TimeUnit.MILLISECONDS.sleep(1);
+
+        blockingQueue.add(new PrioritizedCompactionWrappedRunnable(TaskPriority.KEY_CACHE_SAVE)
         {
             public int hashCode() { return 7; }
 
             protected void runMayThrow() throws Exception { }
         });
-        priorityBlockingQueue.add(new PrioritizedCompactionWrappedRunnable(OperationType.CLEANUP.priority())
+        TimeUnit.MILLISECONDS.sleep(1);
+
+        blockingQueue.add(new PrioritizedCompactionWrappedRunnable(TaskPriority.CLEANUP)
         {
             public int hashCode() { return 8; }
 
             protected void runMayThrow() throws Exception { }
         });
-        priorityBlockingQueue.add(new PrioritizedCompactionWrappedRunnable(OperationType.COMPACTION.priority(), 100L)
-        {
-            public int hashCode() { return 9; }
+        TimeUnit.MILLISECONDS.sleep(1);
 
-            protected void runMayThrow() throws Exception { }
-        });
-        priorityBlockingQueue.add(new PrioritizedCompactionWrappedRunnable(OperationType.COMPACTION.priority(), 500L)
+        blockingQueue.add(new PrioritizedCompactionWrappedRunnable(TaskPriority.COMPACTION)
         {
             public int hashCode() { return 10; }
 
             protected void runMayThrow() throws Exception { }
         });
-        priorityBlockingQueue.add(new PrioritizedCompactionRunnable(OperationType.UPGRADE_SSTABLES.priority(), 500000L)
+        TimeUnit.MILLISECONDS.sleep(1);
+
+        blockingQueue.add(new PrioritizedCompactionWrappedRunnable(TaskPriority.COMPACTION)
+        {
+            public int hashCode() { return 9; }
+
+            protected void runMayThrow() throws Exception { }
+        });
+        TimeUnit.MILLISECONDS.sleep(1);
+
+        blockingQueue.add(new PrioritizedCompactionRunnable(TaskPriority.UPGRADE_SSTABLES)
         {
             public int hashCode() { return 11; }
 
             public void run() { }
         });
+        TimeUnit.MILLISECONDS.sleep(1);
 
-
-        Runnable r;
-        r = priorityBlockingQueue.poll();
+        Runnable r = blockingQueue.poll();
         assertEquals(5, r.hashCode()); // Anticompaction
-        r = priorityBlockingQueue.poll();
+        r = blockingQueue.poll();
         assertEquals(6, r.hashCode()); // Index build
-        r = priorityBlockingQueue.poll();
+        r = blockingQueue.poll();
         assertEquals(7, r.hashCode()); // Key cache save
 
-        // For compaction, use the subtype priority, largest first
-        r = priorityBlockingQueue.poll();
-        assertEquals(10, r.hashCode()); // Compaction (10 is first based on size)
-        r = priorityBlockingQueue.poll();
-        assertEquals(9, r.hashCode()); // Compaction (9 has subtype set, but is lower than 10)
-
-        // For non-subtype compaction, we use timestamp resolution
-        r = priorityBlockingQueue.poll();
-        assertEquals(1, r.hashCode()); // Compaction (1 is first due to timestamps)
-        r = priorityBlockingQueue.poll();
+        // Regular compaction
+        r = blockingQueue.poll();
+        assertEquals(1, r.hashCode()); // Compaction
+        r = blockingQueue.poll();
         assertEquals(2, r.hashCode()); // Compaction
+        r = blockingQueue.poll();
+        assertEquals(10, r.hashCode()); // Compaction (10 is before 9 based on timestamp)
+        r = blockingQueue.poll();
+        assertEquals(9, r.hashCode()); // Compaction (9 has same type as 10, but was created after)
 
-        // Scrub/Cleanup below Compaction
-        r = priorityBlockingQueue.poll();
-        assertEquals(11, r.hashCode());// Upgrade SSTables ahead of scrub/cleanup because of sub priority
-        r = priorityBlockingQueue.poll();
+        // Scrub/Cleanup below Compaction and ordered by timestamp
+        blockingQueue.forEach(System.out::println);
+        r = blockingQueue.poll();
         assertEquals(3, r.hashCode()); // Scrub
-        r = priorityBlockingQueue.poll();
-        assertEquals(8, r.hashCode()); // Cleanup (behind scrub due to timestamps)
-        r = priorityBlockingQueue.poll();
+        r = blockingQueue.poll();
+        assertEquals(8, r.hashCode()); // Cleanup
+        r = blockingQueue.poll();
+        assertEquals(11, r.hashCode());// Upgrade SSTables
+
+        // Verify has lowest priority
+        r = blockingQueue.poll();
         assertEquals(4, r.hashCode()); // Verify
     }
 }

@@ -23,10 +23,10 @@ abstract public class PrioritizedCompactionRunnable implements Runnable, Priorit
 {
     protected final Priorities priorities;
 
-    protected PrioritizedCompactionRunnable(int typePriority)
+    protected PrioritizedCompactionRunnable(TaskPriority priority)
     {
         super();
-        this.priorities = new Priorities(typePriority);
+        this.priorities = new Priorities(priority);
     }
 
     public Priorities getPriorities()

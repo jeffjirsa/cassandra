@@ -25,10 +25,10 @@ abstract public class PrioritizedCompactionWrappedRunnable extends WrappedRunnab
 {
     protected final Priorities priorities;
 
-    protected PrioritizedCompactionWrappedRunnable(int typePriority)
+    protected PrioritizedCompactionWrappedRunnable(TaskPriority priority)
     {
         super();
-        priorities = new Priorities(typePriority);
+        priorities = new Priorities(priority);
     }
 
     public Priorities getPriorities()
