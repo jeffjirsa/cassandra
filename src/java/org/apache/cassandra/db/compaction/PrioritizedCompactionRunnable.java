@@ -29,12 +29,6 @@ abstract public class PrioritizedCompactionRunnable implements Runnable, Priorit
         this.priorities = new Priorities(typePriority);
     }
 
-    protected PrioritizedCompactionRunnable(int typePriority, long subTypePriority)
-    {
-        super();
-        this.priorities = new Priorities(typePriority, subTypePriority);
-    }
-
     public Priorities getPriorities()
     {
         return priorities;

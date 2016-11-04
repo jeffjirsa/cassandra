@@ -19,55 +19,46 @@
 package org.apache.cassandra.db.compaction;
 
 /**
- * Priorities offers a three level comparable for the purpose
+ * Priorities offers a dual level comparable for the purpose
  * of ordering tasks within a prioritized queue
  *
  * The intent is to allow coarse ordering by OperationType,
  * and then more granular ordering of tasks within a type
- * by the subtype and timestamp.
- *
- * Individual callers are free to set subtype as needed, though
- * no effort is made to guard against starvation
+ * by timestamp.
  */
 public class Priorities implements Comparable<Priorities>
 {
-    public static final Priorities DEFAULT = new Priorities(0, 0, 0);
-    public final int type;
-    public final long subtype;
+    public static final Priorities DEFAULT = new Priorities(TaskPriority.MIN, 0);
+    public final TaskPriority priority;
     public final long timestamp;
 
-    public Priorities(int type)
+    public Priorities(TaskPriority priority)
     {
-        this(type, 0, System.currentTimeMillis());
+        this(priority, System.currentTimeMillis());
     }
 
-    public Priorities(int type, long subtype)
+    private Priorities(TaskPriority priority, long timestamp)
     {
-        this(type, subtype, System.currentTimeMillis());
-    }
-
-    public Priorities(int type, long subtype, long timestamp)
-    {
-        this.type = type;
-        this.subtype = subtype;
+        this.priority = priority;
         this.timestamp = timestamp;
     }
 
     public int compareTo(Priorities o)
     {
-        if (type > o.type)
-            return -1;
-        if (type < o.type)
-            return 1;
-        if (subtype > o.subtype)
-            return -1;
-        if (subtype < o.subtype)
-            return 1;
+        // If the task types have the same priority value, favor the one with the lowest timestamp
+        if (priority.priority() == o.priority.priority())
+        {
+            return timestamp < o.timestamp
+                   ? -1
+                   : timestamp > o.timestamp ? 1 : 0;
+        }
 
-        // If same op type, and same sub priority
-        // Favor the task with the lowest timestamp
-        return timestamp < o.timestamp
-               ? -1
-               : timestamp > o.timestamp ? 1 : 0;
+        return o.priority.priority() - priority.priority();
+    }
+
+    public String toString()
+    {
+        return String.format("Priorities[type:%s, timestamp: %s]", priority, timestamp);
     }
 }
+

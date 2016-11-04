@@ -31,12 +31,6 @@ abstract public class PrioritizedCompactionWrappedRunnable extends WrappedRunnab
         priorities = new Priorities(typePriority);
     }
 
-    protected PrioritizedCompactionWrappedRunnable(int typePriority, long subTypePriority)
-    {
-        super();
-        priorities = new Priorities(typePriority, subTypePriority);
-    }
-
     public Priorities getPriorities()
     {
         return priorities;
