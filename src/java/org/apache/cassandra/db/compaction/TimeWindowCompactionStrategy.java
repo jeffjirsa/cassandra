@@ -82,7 +82,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
             LifecycleTransaction modifier = cfs.getTracker().tryModify(latestBucket, OperationType.COMPACTION);
             if (modifier != null)
-                return new CompactionTask(cfs, modifier, gcBefore).withPriority(OperationType.COMPACTION.priority());
+                return new CompactionTask(cfs, modifier, gcBefore);
         }
     }
 
@@ -330,7 +330,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         LifecycleTransaction txn = cfs.getTracker().tryModify(filteredSSTables, OperationType.COMPACTION);
         if (txn == null)
             return null;
-        return Collections.singleton(new CompactionTask(cfs, txn, gcBefore).withPriority(OperationType.COMPACTION.priority()));
+        return Collections.singleton(new CompactionTask(cfs, txn, gcBefore));
     }
 
     @Override
@@ -346,7 +346,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
             return null;
         }
 
-        return new CompactionTask(cfs, modifier, gcBefore).withPriority(OperationType.USER_DEFINED_COMPACTION.priority()).setUserDefined(true);
+        return new CompactionTask(cfs, modifier, gcBefore).setUserDefined(true);
     }
 
     public int getEstimatedRemainingTasks()

@@ -28,13 +28,12 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 
-public abstract class AbstractCompactionTask extends WrappedRunnable implements Prioritized
+public abstract class AbstractCompactionTask extends WrappedRunnable
 {
     protected final ColumnFamilyStore cfs;
     protected LifecycleTransaction transaction;
     protected boolean isUserDefined;
     protected OperationType compactionType;
-    protected Priorities priorities;
 
     /**
      * @param cfs
@@ -46,7 +45,6 @@ public abstract class AbstractCompactionTask extends WrappedRunnable implements 
         this.transaction = transaction;
         this.isUserDefined = false;
         this.compactionType = OperationType.COMPACTION;
-        this.priorities = new Priorities(compactionType.priority(), 0, System.currentTimeMillis());
         // enforce contract that caller should mark sstables compacting
         Set<SSTableReader> compacting = transaction.tracker.getCompacting();
         for (SSTableReader sstable : transaction.originals())
@@ -86,25 +84,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable implements 
     public AbstractCompactionTask setCompactionType(OperationType compactionType)
     {
         this.compactionType = compactionType;
-        this.priorities = new Priorities(compactionType.priority(), 0, priorities.timestamp);
         return this;
-    }
-
-    public AbstractCompactionTask withPriority(int opTypePriority)
-    {
-        this.priorities = new Priorities(opTypePriority, 0, priorities.timestamp);
-        return this;
-    }
-
-    public AbstractCompactionTask withPriority(int opTypePriority, long subPriority)
-    {
-        this.priorities = new Priorities(opTypePriority, subPriority, priorities.timestamp);
-        return this;
-    }
-
-    public Priorities getPriorities()
-    {
-        return priorities;
     }
 
     public String toString()

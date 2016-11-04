@@ -141,7 +141,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             {
                 LeveledCompactionTask newTask = new LeveledCompactionTask(cfs, txn, candidate.level, gcBefore, candidate.maxSSTableBytes, false);
                 newTask.setCompactionType(op);
-                return newTask.withPriority(OperationType.COMPACTION.priority());
+                return newTask;
             }
         }
     }
