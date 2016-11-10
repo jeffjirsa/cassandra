@@ -39,7 +39,7 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
     protected static final Logger logger = LoggerFactory.getLogger(WriteResponseHandler.class);
 
     protected volatile int responses;
-    private static final AtomicIntegerFieldUpdater<WriteResponseHandler> responsesUpdater
+    protected static final AtomicIntegerFieldUpdater<WriteResponseHandler> responsesUpdater
             = AtomicIntegerFieldUpdater.newUpdater(WriteResponseHandler.class, "responses");
 
     public WriteResponseHandler(Collection<InetAddress> writeEndpoints,
