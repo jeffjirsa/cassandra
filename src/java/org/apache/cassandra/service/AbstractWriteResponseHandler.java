@@ -40,7 +40,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
 {
     protected static final Logger logger = LoggerFactory.getLogger( AbstractWriteResponseHandler.class );
 
-    private final SimpleCondition condition = new SimpleCondition();
+    protected final SimpleCondition condition = new SimpleCondition();
     protected final Keyspace keyspace;
     protected final long start;
     protected final Collection<InetAddress> naturalEndpoints;
@@ -50,7 +50,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     protected final WriteType writeType;
     private static final AtomicIntegerFieldUpdater<AbstractWriteResponseHandler> failuresUpdater
         = AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "failures");
-    private volatile int failures = 0;
+    protected volatile int failures = 0;
 
     /**
      * @param callback A callback to be called when the write is successful.
