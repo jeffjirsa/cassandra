@@ -49,7 +49,8 @@ public class QuorumPlusLocalWriteResponseHandler<T> extends AbstractWriteRespons
     {
         super(keyspace, naturalEndpoints, pendingEndpoints, consistencyLevel, callback, writeType);
 
-        assert consistencyLevel == ConsistencyLevel.QUORUM_PLUS_LOCAL_QUORUM &&
+        assert ((consistencyLevel == ConsistencyLevel.QUORUM_PLUS_LOCAL_QUORUM) ||
+                (consistencyLevel == ConsistencyLevel.QUORUM_PLUS_LOCAL_ONE)) &&
                 localConsistencyLevel.isDatacenterLocal();
 
         quorumHandler = new WriteResponseHandler<T>(naturalEndpoints, pendingEndpoints, ConsistencyLevel.QUORUM, keyspace, callback, writeType);

@@ -65,6 +65,7 @@ public class ThriftConversion
             case SERIAL: return org.apache.cassandra.db.ConsistencyLevel.SERIAL;
             case LOCAL_SERIAL: return org.apache.cassandra.db.ConsistencyLevel.LOCAL_SERIAL;
             case LOCAL_ONE: return org.apache.cassandra.db.ConsistencyLevel.LOCAL_ONE;
+            case QUORUM_PLUS_LOCAL_ONE: return org.apache.cassandra.db.ConsistencyLevel.QUORUM_PLUS_LOCAL_ONE;
             case QUORUM_PLUS_LOCAL_QUORUM: return org.apache.cassandra.db.ConsistencyLevel.QUORUM_PLUS_LOCAL_QUORUM;
         }
         throw new AssertionError();
@@ -85,6 +86,7 @@ public class ThriftConversion
             case SERIAL: return ConsistencyLevel.SERIAL;
             case LOCAL_SERIAL: return ConsistencyLevel.LOCAL_SERIAL;
             case LOCAL_ONE: return ConsistencyLevel.LOCAL_ONE;
+            case QUORUM_PLUS_LOCAL_ONE: return ConsistencyLevel.QUORUM_PLUS_LOCAL_ONE;
             case QUORUM_PLUS_LOCAL_QUORUM: return ConsistencyLevel.QUORUM_PLUS_LOCAL_QUORUM;
         }
         throw new AssertionError();

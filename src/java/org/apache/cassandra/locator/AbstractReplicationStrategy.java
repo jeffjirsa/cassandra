@@ -140,6 +140,10 @@ public abstract class AbstractReplicationStrategy
         {
             return new DatacenterSyncWriteResponseHandler<T>(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType);
         }
+        else if (consistency_level == ConsistencyLevel.QUORUM_PLUS_LOCAL_ONE && (this instanceof NetworkTopologyStrategy))
+        {
+            return new QuorumPlusLocalWriteResponseHandler<T>(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType, ConsistencyLevel.LOCAL_ONE);
+        }
         else if (consistency_level == ConsistencyLevel.QUORUM_PLUS_LOCAL_QUORUM && (this instanceof NetworkTopologyStrategy))
         {
             return new QuorumPlusLocalWriteResponseHandler<T>(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType, ConsistencyLevel.LOCAL_QUORUM);

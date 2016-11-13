@@ -50,6 +50,7 @@ public enum ConsistencyLevel
     SERIAL      (8),
     LOCAL_SERIAL(9),
     LOCAL_ONE   (10, true),
+    QUORUM_PLUS_LOCAL_ONE(253),
     QUORUM_PLUS_LOCAL_QUORUM(254);
 
     private static final Logger logger = LoggerFactory.getLogger(ConsistencyLevel.class);
@@ -117,6 +118,7 @@ public enum ConsistencyLevel
                 return 3;
             case QUORUM:
             case SERIAL:
+            case QUORUM_PLUS_LOCAL_ONE:
             case QUORUM_PLUS_LOCAL_QUORUM:
                 return quorumFor(keyspace);
             case ALL:
@@ -269,6 +271,11 @@ public enum ConsistencyLevel
                 return countLocalEndpoints(liveEndpoints) >= 1;
             case LOCAL_QUORUM:
                 return countLocalEndpoints(liveEndpoints) >= blockFor(keyspace);
+            case QUORUM_PLUS_LOCAL_ONE:
+                if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
+                    return countLocalEndpoints(liveEndpoints) >= ConsistencyLevel.LOCAL_ONE.blockFor(keyspace)
+                            && Iterables.size(liveEndpoints) >= blockFor(keyspace);
+                return Iterables.size(liveEndpoints) >= blockFor(keyspace);
             case QUORUM_PLUS_LOCAL_QUORUM:
                 if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
                     return countLocalEndpoints(liveEndpoints) >= ConsistencyLevel.LOCAL_QUORUM.blockFor(keyspace)
@@ -318,6 +325,18 @@ public enum ConsistencyLevel
                         logger.trace(builder.toString());
                     }
                     throw new UnavailableException(this, blockFor, localLive);
+                }
+                break;
+            case QUORUM_PLUS_LOCAL_ONE:
+                if (keyspace.getReplicationStrategy() instanceof  NetworkTopologyStrategy) {
+                    if (countLocalEndpoints(liveEndpoints) == 0) {
+                        throw new UnavailableException(this, blockFor, countLocalEndpoints(liveEndpoints));
+                    }
+                }
+                // SimpleStrategy AND NetworkTopologyStrategy will check total live endpoints vs blockFor
+                if (Iterables.size(liveEndpoints) < blockFor) {
+                    logger.trace("Live nodes {} do not satisfy QUORUM_PLUS_LOCAL_ONE cluster-wide component ({} required)", Iterables.toString(liveEndpoints), blockFor);
+                    throw new UnavailableException(this, Iterables.size(liveEndpoints), blockFor);
                 }
                 break;
             case QUORUM_PLUS_LOCAL_QUORUM:
@@ -371,6 +390,7 @@ public enum ConsistencyLevel
         switch (this)
         {
             case ANY:
+            case QUORUM_PLUS_LOCAL_ONE:
             case QUORUM_PLUS_LOCAL_QUORUM:
                 throw new InvalidRequestException(String.format("%s ConsistencyLevel is only supported for writes", this));
         }

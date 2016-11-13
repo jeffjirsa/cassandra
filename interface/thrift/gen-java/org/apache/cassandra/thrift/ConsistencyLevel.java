@@ -63,6 +63,7 @@ import org.apache.thrift.TEnum;
  *   LOCAL_ONE    Ensure that the write has been written to 1 node within the local datacenter (requires NetworkTopologyStrategy)
  *   LOCAL_QUORUM Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes, within the local datacenter (requires NetworkTopologyStrategy)
  *   EACH_QUORUM  Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes in each datacenter (requires NetworkTopologyStrategy)
+ *   QUORUM_PLUS_LOCAL_ONE    Ensure that the write satisfies both QUORUM and LOCAL_ONE (requires NetworkTopologyStrategy)
  *   QUORUM_PLUS_LOCAL_QUORUM Ensure that the write satisfies both QUORUM and LOCAL_QUORUM (requires NetworkTopologyStrategy)
  *   ALL          Ensure that the write is written to <code>&lt;ReplicationFactor&gt;</code> nodes before responding to the client.
  * 
@@ -89,6 +90,7 @@ public enum ConsistencyLevel implements org.apache.thrift.TEnum {
   SERIAL(9),
   LOCAL_SERIAL(10),
   LOCAL_ONE(11),
+  QUORUM_PLUS_LOCAL_ONE(253),
   QUORUM_PLUS_LOCAL_QUORUM(254);
 
   private final int value;

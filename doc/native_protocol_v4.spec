@@ -238,6 +238,7 @@ Table of Contents
                      0x0008    SERIAL
                      0x0009    LOCAL_SERIAL
                      0x000A    LOCAL_ONE
+                     0x00FD    QUORUM_PLUS_LOCAL_ONE
                      0x00FE    QUORUM_PLUS_LOCAL_QUORUM
 
     [string map]      A [short] n, followed by n pair <k><v> where <k> and <v>
