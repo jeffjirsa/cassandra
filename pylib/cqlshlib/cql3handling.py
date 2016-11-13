@@ -75,6 +75,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'ALL',
         'LOCAL_QUORUM',
         'EACH_QUORUM',
+        'QUORUM_PLUS_LOCAL_QUORUM',
         'SERIAL'
     )
 

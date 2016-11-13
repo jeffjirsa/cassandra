@@ -49,7 +49,8 @@ public enum ConsistencyLevel
     EACH_QUORUM (7),
     SERIAL      (8),
     LOCAL_SERIAL(9),
-    LOCAL_ONE   (10, true);
+    LOCAL_ONE   (10, true),
+    QUORUM_PLUS_LOCAL_QUORUM(254);
 
     private static final Logger logger = LoggerFactory.getLogger(ConsistencyLevel.class);
 
@@ -116,6 +117,7 @@ public enum ConsistencyLevel
                 return 3;
             case QUORUM:
             case SERIAL:
+            case QUORUM_PLUS_LOCAL_QUORUM:
                 return quorumFor(keyspace);
             case ALL:
                 return keyspace.getReplicationStrategy().getReplicationFactor();
@@ -267,6 +269,11 @@ public enum ConsistencyLevel
                 return countLocalEndpoints(liveEndpoints) >= 1;
             case LOCAL_QUORUM:
                 return countLocalEndpoints(liveEndpoints) >= blockFor(keyspace);
+            case QUORUM_PLUS_LOCAL_QUORUM:
+                if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
+                    return countLocalEndpoints(liveEndpoints) >= ConsistencyLevel.LOCAL_QUORUM.blockFor(keyspace)
+                            && Iterables.size(liveEndpoints) >= blockFor(keyspace);
+                return Iterables.size(liveEndpoints) >= blockFor(keyspace);
             case EACH_QUORUM:
                 if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
                 {
@@ -313,6 +320,28 @@ public enum ConsistencyLevel
                     throw new UnavailableException(this, blockFor, localLive);
                 }
                 break;
+            case QUORUM_PLUS_LOCAL_QUORUM:
+                if (keyspace.getReplicationStrategy() instanceof  NetworkTopologyStrategy) {
+                    localLive = countLocalEndpoints(liveEndpoints);
+                    if (localLive < ConsistencyLevel.LOCAL_QUORUM.blockFor(keyspace)) {
+                        if (logger.isTraceEnabled()) {
+                            StringBuilder builder = new StringBuilder("Local replicas [");
+                            for (InetAddress endpoint : liveEndpoints) {
+                                if (isLocal(endpoint))
+                                    builder.append(endpoint).append(",");
+                            }
+                            builder.append("] are insufficient to satisfy QUORUM_PLUS_LOCAL_QUORUM local component requirement of ").append(blockFor).append(" live nodes in '").append(DatabaseDescriptor.getLocalDataCenter()).append("'");
+                            logger.trace(builder.toString());
+                        }
+                        throw new UnavailableException(this, blockFor, localLive);
+                    }
+                }
+                // SimpleStrategy AND NetworkTopologyStrategy will check total live endpoints vs blockFor
+                if (Iterables.size(liveEndpoints) < blockFor) {
+                    logger.trace("Live nodes {} do not satisfy QUORUM_PLUS_LOCAL_QUORUM cluster-wide component ({} required)", Iterables.toString(liveEndpoints), blockFor);
+                    throw new UnavailableException(this, Iterables.size(liveEndpoints), blockFor);
+                }
+                break;
             case EACH_QUORUM:
                 if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
                 {
@@ -342,7 +371,8 @@ public enum ConsistencyLevel
         switch (this)
         {
             case ANY:
-                throw new InvalidRequestException("ANY ConsistencyLevel is only supported for writes");
+            case QUORUM_PLUS_LOCAL_QUORUM:
+                throw new InvalidRequestException(String.format("%s ConsistencyLevel is only supported for writes", this));
         }
     }
 

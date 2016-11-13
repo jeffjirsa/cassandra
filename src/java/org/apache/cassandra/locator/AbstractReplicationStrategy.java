@@ -35,10 +35,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.service.AbstractWriteResponseHandler;
-import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
-import org.apache.cassandra.service.DatacenterWriteResponseHandler;
-import org.apache.cassandra.service.WriteResponseHandler;
+import org.apache.cassandra.service.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -142,6 +139,10 @@ public abstract class AbstractReplicationStrategy
         else if (consistency_level == ConsistencyLevel.EACH_QUORUM && (this instanceof NetworkTopologyStrategy))
         {
             return new DatacenterSyncWriteResponseHandler<T>(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType);
+        }
+        else if (consistency_level == ConsistencyLevel.QUORUM_PLUS_LOCAL_QUORUM && (this instanceof NetworkTopologyStrategy))
+        {
+            return new QuorumPlusLocalWriteResponseHandler<T>(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType, ConsistencyLevel.LOCAL_QUORUM);
         }
         return new WriteResponseHandler<T>(naturalEndpoints, pendingEndpoints, consistency_level, getKeyspace(), callback, writeType);
     }
