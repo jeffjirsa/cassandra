@@ -30,6 +30,16 @@ Upgrading
       CREATE keyspace replication policies using that datacenter. Existing keyspaces will continue to operate, 
       but CREATE and ALTER will validate that all datacenters specified exist in the cluster. 
 
+3.12
+====
+
+Upgrading
+---------
+    - An appropriate gc_grace_seconds will be applied to tables within system_distributed for new installs. However,
+      users upgrading to 3.12 or newer should consider explicitly applying gc_grace_seconds to system_distributed.repair_history,
+      system_distributed.parent_repair_history, and system_distributed.view_build_status (CASSANDRA-12954).
+
+
 3.10
 ====
 
