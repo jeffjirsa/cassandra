@@ -13,6 +13,17 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+
+3.12
+====
+
+Upgrading
+---------
+    - An appropriate gc_grace_seconds will be applied to tables within system_distributed for new installs. However,
+      users upgrading to 3.12 or newer should consider explicitly applying gc_grace_seconds to system_distributed.repair_history,
+      system_distributed.parent_repair_history, and system_distributed.view_build_status (CASSANDRA-12954).
+
+
 3.10
 ====
 
