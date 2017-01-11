@@ -371,7 +371,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     public void registerParentRepairSession(UUID parentRepairSession, InetAddress coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal)
     {
-        assert !isIncremental || repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE;
+        assert isIncremental || repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE;
         if (!registeredForEndpointChanges)
         {
             Gossiper.instance.register(this);
