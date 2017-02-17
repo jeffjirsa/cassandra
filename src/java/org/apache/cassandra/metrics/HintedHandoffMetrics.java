@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.util.Map.Entry;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Histogram;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.utils.UUIDGen;
 import org.slf4j.Logger;
@@ -58,6 +59,30 @@ public class HintedHandoffMetrics
             return Metrics.counter(factory.createMetricName("Hints_created-" + address.getHostAddress().replace(':', '.')));
         }
     });
+
+    /** Histogram of all hint delivery delays */
+    private final Histogram globalDelayHistogram = Metrics.histogram(factory.createMetricName("Hint_delays"), false);
+
+    /** Histograms per-endpoint of hint delivery delays, This is not a cache. */
+    private final LoadingCache<InetAddress, Histogram> delayByEndpoint = CacheBuilder.newBuilder().build(new CacheLoader<InetAddress, Histogram>()
+    {
+        public Histogram load(InetAddress address)
+        {
+            return Metrics.histogram(factory.createMetricName("Hint_delays-"+address.getHostAddress().replace(':', '.')), false);
+        }
+    });
+
+    public void updateDelayMetrics(InetAddress endpoint, long delay)
+    {
+        if(delay <= 0)
+        {
+            logger.warn("Invalid negative latency in hint delivery delay: {}", delay);
+            return;
+        }
+
+        globalDelayHistogram.update(delay);
+        delayByEndpoint.getUnchecked(endpoint).update(delay);
+    }
 
     public void incrCreatedHints(InetAddress address)
     {
