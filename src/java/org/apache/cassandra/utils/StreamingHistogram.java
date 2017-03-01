@@ -304,7 +304,7 @@ public class StreamingHistogram
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(bin.hashCode(), spool.hashCode(), maxBinSize, maxSpoolSize);
+        return Objects.hashCode(bin.hashCode(), spool.hashCode(), maxBinSize);
     }
 
 }
