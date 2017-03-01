@@ -297,7 +297,6 @@ public class StreamingHistogram
 
         StreamingHistogram that = (StreamingHistogram) o;
         return maxBinSize == that.maxBinSize &&
-               maxSpoolSize == that.maxSpoolSize &&
                spool.equals(that.spool) &&
                bin.equals(that.bin);
     }
