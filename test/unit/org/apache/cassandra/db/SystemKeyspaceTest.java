@@ -187,13 +187,13 @@ public class SystemKeyspaceTest
     @Test
     public void testMigrateDataDirs_2_1() throws IOException
     {
-        testMigrateDataDirs("2.1", 5); // see test data for num legacy files
+        testMigrateDataDirs("2.1", 4); // see test data for num legacy files
     }
 
     @Test
     public void testMigrateDataDirs_2_2() throws IOException
     {
-        testMigrateDataDirs("2.2", 7); // see test data for num legacy files
+        testMigrateDataDirs("2.2", 6); // see test data for num legacy files
     }
 
     private void testMigrateDataDirs(String version, int numLegacyFiles) throws IOException

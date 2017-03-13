@@ -182,21 +182,16 @@ public class Descriptor
      *  Files obsoleted by CASSANDRA-7066 : temporary files and compactions_in_progress. We support
      *  versions 2.1 (ka) and 2.2 (la).
      *  Temporary files have tmp- or tmplink- at the beginning for 2.2 sstables or after ks-cf- for 2.1 sstables
+     *  CASSANDRA-13313: We maintain compactions_in_progress to ensure we can safely clean up compactions during the upgrade
      */
-
-    private final static String LEGACY_COMP_IN_PROG_REGEX_STR = "^compactions_in_progress(\\-[\\d,a-f]{32})?$";
-    private final static Pattern LEGACY_COMP_IN_PROG_REGEX = Pattern.compile(LEGACY_COMP_IN_PROG_REGEX_STR);
     private final static String LEGACY_TMP_REGEX_STR = "^((.*)\\-(.*)\\-)?tmp(link)?\\-((?:l|k).)\\-(\\d)*\\-(.*)$";
     private final static Pattern LEGACY_TMP_REGEX = Pattern.compile(LEGACY_TMP_REGEX_STR);
 
     public static boolean isLegacyFile(File file)
     {
-        if (file.isDirectory())
-            return file.getParentFile() != null &&
-                   file.getParentFile().getName().equalsIgnoreCase("system") &&
-                   LEGACY_COMP_IN_PROG_REGEX.matcher(file.getName()).matches();
-        else
+        if (!file.isDirectory())
             return LEGACY_TMP_REGEX.matcher(file.getName()).matches();
+        return false;
     }
 
     public static boolean isValidFile(String fileName)

@@ -19,6 +19,10 @@ package org.apache.cassandra.io.sstable.metadata;
 
 import java.io.IOException;
 
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
 
@@ -37,11 +41,21 @@ public class CompactionMetadata extends MetadataComponent
 {
     public static final IMetadataComponentSerializer serializer = new CompactionMetadataSerializer();
 
+    @Deprecated
+    public Set<Integer> ancestors;
+
     public final ICardinality cardinalityEstimator;
 
     public CompactionMetadata(ICardinality cardinalityEstimator)
     {
         this.cardinalityEstimator = cardinalityEstimator;
+        this.ancestors = Collections.emptySet();
+    }
+
+    public CompactionMetadata(ICardinality cardinalityEstimator, Set<Integer> ancestors)
+    {
+        this.cardinalityEstimator = cardinalityEstimator;
+        this.ancestors = ancestors;
     }
 
     public MetadataType getType()
@@ -76,8 +90,10 @@ public class CompactionMetadata extends MetadataComponent
         {
             int sz = 0;
             if (version.hasCompactionAncestors())
-            {   // write empty ancestor marker
-                sz = 4;
+            {
+                sz += TypeSizes.sizeof(component.ancestors.size());
+                for (int g : component.ancestors)
+                    sz += TypeSizes.sizeof(g);
             }
             byte[] serializedCardinality = component.cardinalityEstimator.getBytes();
             return TypeSizes.sizeof(serializedCardinality.length) + serializedCardinality.length + sz;
@@ -86,21 +102,26 @@ public class CompactionMetadata extends MetadataComponent
         public void serialize(Version version, CompactionMetadata component, DataOutputPlus out) throws IOException
         {
             if (version.hasCompactionAncestors())
-            {   // write empty ancestor marker
-                out.writeInt(0);
+            {
+                out.writeInt(component.ancestors.size());
+                for (int g : component.ancestors)
+                    out.writeInt(g);
             }
             ByteBufferUtil.writeWithLength(component.cardinalityEstimator.getBytes(), out);
         }
 
         public CompactionMetadata deserialize(Version version, DataInputPlus in) throws IOException
         {
+            Set<Integer> ancestors = new HashSet<>();
+
             if (version.hasCompactionAncestors())
-            { // skip ancestors
+            {
                 int nbAncestors = in.readInt();
-                in.skipBytes(nbAncestors * TypeSizes.sizeof(nbAncestors));
+                for (int i = 0; i < nbAncestors; i++)
+                    ancestors.add(in.readInt());
             }
             ICardinality cardinality = HyperLogLogPlus.Builder.build(ByteBufferUtil.readBytes(in, in.readInt()));
-            return new CompactionMetadata(cardinality);
+            return new CompactionMetadata(cardinality, ancestors);
         }
     }
 }

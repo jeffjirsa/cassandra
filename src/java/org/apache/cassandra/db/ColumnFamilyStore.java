@@ -61,12 +61,16 @@ import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
+import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.TableMetrics;
@@ -640,12 +644,112 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // also clean out any index leftovers.
         for (IndexMetadata index : metadata.getIndexes())
+        {
             if (!index.isCustom())
             {
                 CFMetaData indexMetadata = CassandraIndex.indexCfsMetadata(metadata, index);
                 scrubDataDirectories(indexMetadata);
             }
+        }
     }
+
+    /**
+     * Prior to 3.0, replacing compacted sstables was atomic as far as observers of DataTracker are concerned, but not on the
+     * filesystem: first the new sstables are renamed to "live" status (i.e., the tmp marker is removed), then
+     * their ancestors are removed.
+     *
+     * If an unclean shutdown for upgrade happens at the right time, we can thus end up with both the new ones and their
+     * ancestors "live" in the system.  The most dangerous scenario here is that data from sstable A and a tombstone from sstable
+     * B are compacted to sstable C (purging the tombstone and data), then sstable B is removed. A and C remain, and the data
+     * is ressurected.
+     *
+     * To prevent this, we can use the record of sstables being compacted in the system keyspace and the ancestor metadata
+     * to try to identify incomplete transactions.
+     */
+    public static void removeUnfinishedLegacyCompactionLeftovers(CFMetaData metadata, Map<Integer, UUID> unfinishedCompactions)
+    {
+        Directories directories = new Directories(metadata);
+        Set<Integer> allGenerations = new HashSet<>();
+        Map<Descriptor, Set<Component>> allSStables = directories.sstableLister(Directories.OnTxnErr.IGNORE).list();
+
+        for (Descriptor desc : allSStables.keySet())
+            allGenerations.add(desc.generation);
+
+        // sanity-check unfinishedCompactions
+        Set<Integer> unfinishedGenerations = unfinishedCompactions.keySet();
+        if (!allGenerations.containsAll(unfinishedGenerations))
+        {
+            HashSet<Integer> missingGenerations = new HashSet<>(unfinishedGenerations);
+            missingGenerations.removeAll(allGenerations);
+            logger.info("Unfinished compactions of {}.{} reference missing sstables of generations {}",
+                        metadata.ksName, metadata.cfName, missingGenerations);
+        }
+
+        // remove new sstables from compactions that didn't complete, and compute
+        // set of ancestors that shouldn't exist anymore
+        Set<Integer> completedAncestors = new HashSet<>();
+        for (Map.Entry<Descriptor, Set<Component>> sstableFiles : directories.sstableLister(Directories.OnTxnErr.IGNORE).skipTemporary(true).list().entrySet())
+        {
+            // we rename the Data component last - if it does not exist as a final file, we should ignore this sstable and
+            // it will be removed during startup
+            if (!sstableFiles.getValue().contains(Component.DATA))
+                continue;
+
+            Descriptor desc = sstableFiles.getKey();
+            if(!desc.version.hasCompactionAncestors())
+                continue;
+
+            Set<Integer> ancestors;
+            try
+            {
+                CompactionMetadata compactionMetadata = (CompactionMetadata) desc.getMetadataSerializer().deserialize(desc, MetadataType.COMPACTION);
+                ancestors = compactionMetadata.ancestors;
+            }
+            catch (IOException e)
+            {
+                throw new FSReadError(e, desc.filenameFor(Component.STATS));
+            }
+            catch (NullPointerException e)
+            {
+                throw new FSReadError(e, "Failed to remove unfinished compaction leftovers (file: " + desc.filenameFor(Component.STATS) + ").  See log for details.");
+            }
+
+            if (!ancestors.isEmpty()
+                && unfinishedGenerations.containsAll(ancestors)
+                && allGenerations.containsAll(ancestors))
+            {
+                // any of the ancestors would work, so we'll just lookup the compaction task ID with the first one
+                UUID compactionTaskID = unfinishedCompactions.get(ancestors.iterator().next());
+                assert compactionTaskID != null;
+                logger.info("Going to delete unfinished compaction product {}", desc);
+                SSTable.delete(desc, sstableFiles.getValue());
+            }
+            else
+            {
+                completedAncestors.addAll(ancestors);
+            }
+        }
+
+        // remove old sstables from compactions that did complete
+        for (Map.Entry<Descriptor, Set<Component>> sstableFiles : allSStables.entrySet())
+        {
+            Descriptor desc = sstableFiles.getKey();
+            if(!desc.version.hasCompactionAncestors())
+                continue;
+
+            if (completedAncestors.contains(desc.generation) && !unfinishedGenerations.contains(desc.generation))
+            {
+                // if any of the ancestors were participating in a compaction, finish that compaction
+                logger.info("Going to delete leftover compaction ancestor {}", desc);
+                SSTable.delete(desc, sstableFiles.getValue());
+            }
+            else if (completedAncestors.contains(desc.generation))
+            {
+                logger.info("Generation {} was an input in an unfinished compaction, can't delete the file", desc.generation);
+            }
+        }
+    }
+
 
     /**
      * See #{@code StorageService.loadNewSSTables(String, String)} for more info

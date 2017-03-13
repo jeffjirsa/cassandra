@@ -53,6 +53,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -114,6 +115,7 @@ public final class SystemKeyspace
     @Deprecated public static final String LEGACY_USERTYPES = "schema_usertypes";
     @Deprecated public static final String LEGACY_FUNCTIONS = "schema_functions";
     @Deprecated public static final String LEGACY_AGGREGATES = "schema_aggregates";
+    @Deprecated public static final String LEGACY_COMPACTION_LOG = "compactions_in_progress";
 
     public static final CFMetaData Batches =
         compile(BATCHES,
@@ -413,6 +415,17 @@ public final class SystemKeyspace
                 + "state_type text,"
                 + "PRIMARY KEY ((keyspace_name), aggregate_name, signature))");
 
+    @Deprecated
+    public static final CFMetaData LegacyCompactionLog =
+    compile(LEGACY_COMPACTION_LOG,
+            "*DEPRECATED* compactions in progress",
+            "CREATE TABLE %s ("
+            + "id uuid PRIMARY KEY,"
+            + "keyspace_name text,"
+            + "columnfamily_name text,"
+            + "inputs set<int> )");
+
+
     private static CFMetaData compile(String name, String description, String schema)
     {
         return CFMetaData.compile(String.format(schema, name), NAME)
@@ -447,7 +460,8 @@ public final class SystemKeyspace
                          LegacyTriggers,
                          LegacyUsertypes,
                          LegacyFunctions,
-                         LegacyAggregates);
+                         LegacyAggregates,
+                         LegacyCompactionLog);
     }
 
     private static Functions functions()
@@ -1402,5 +1416,51 @@ public final class SystemKeyspace
             throw new IOError(e);
         }
     }
+
+    /**
+     * Returns a Map whose keys are KS.CF pairs and whose values are maps from sstable generation numbers to the
+     * task ID of the compaction they were participating in.
+     */
+    public static Map<Pair<String, String>, Map<Integer, UUID>> getUnfinishedCompactions()
+    {
+        String req = "SELECT * FROM system.%s";
+        UntypedResultSet resultSet;
+        try {
+            resultSet = executeInternal(String.format(req, LEGACY_COMPACTION_LOG));
+        }
+        catch (InvalidRequestException e)
+        {
+            // Expected if we didn't upgrade from 2.x
+            return Collections.emptyMap();
+        }
+
+
+        Map<Pair<String, String>, Map<Integer, UUID>> unfinishedCompactions = new HashMap<>();
+        for (UntypedResultSet.Row row : resultSet)
+        {
+            String keyspace = row.getString("keyspace_name");
+            String columnfamily = row.getString("columnfamily_name");
+            Set<Integer> inputs = row.getSet("inputs", Int32Type.instance);
+            UUID taskID = row.getUUID("id");
+
+            Pair<String, String> kscf = Pair.create(keyspace, columnfamily);
+            Map<Integer, UUID> generationToTaskID = unfinishedCompactions.get(kscf);
+            if (generationToTaskID == null)
+                generationToTaskID = new HashMap<>(inputs.size());
+
+            for (Integer generation : inputs)
+                generationToTaskID.put(generation, taskID);
+
+            unfinishedCompactions.put(kscf, generationToTaskID);
+        }
+        return unfinishedCompactions;
+    }
+
+    public static void discardCompactionsInProgress()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(NAME).getColumnFamilyStore(LEGACY_COMPACTION_LOG);
+        cfs.truncateBlocking();
+    }
+
 
 }

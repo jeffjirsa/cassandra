@@ -28,6 +28,7 @@ import java.rmi.server.RMIServerSocketFactory;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import javax.management.MBeanServer;
@@ -239,6 +240,22 @@ public class CassandraDaemon
 
         // load schema from disk
         Schema.instance.loadFromDisk();
+
+        // clean up LEGACY compaction leftovers
+        Map<Pair<String, String>, Map<Integer, UUID>> unfinishedCompactions = SystemKeyspace.getUnfinishedCompactions();
+        for (String ksName : Schema.instance.getKeyspaces())
+        {
+            for (CFMetaData cfm : Schema.instance.getTablesAndViews(ksName))
+            {
+                Pair<String, String> key = Pair.create(ksName, cfm.cfName);
+                // CFMetaData can be null if CF is already dropped
+                if (cfm != null)
+                {
+                    logger.info("Removing unfinished compactions from {}.{}", ksName, cfm.cfName);
+                    ColumnFamilyStore.removeUnfinishedLegacyCompactionLeftovers(cfm, unfinishedCompactions.getOrDefault(key, Collections.emptyMap()));                }
+            }
+        }
+        SystemKeyspace.discardCompactionsInProgress();
 
         // clean up debris in the rest of the keyspaces
         for (String keyspaceName : Schema.instance.getKeyspaces())
