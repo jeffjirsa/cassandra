@@ -19,11 +19,7 @@ test:
     - ant build
  
   override:
-    - ant codecoverage :
-        timeout: 14400
+    - ant test
   post:
     - mkdir -p $CIRCLE_TEST_REPORTS/junit/
-    - junit-merge ./build/test/output/*.xml ./cassandra-dtest/nosetests.xml
-    - cp merged-test-results.xml $CIRCLE_TEST_REPORTS/junit/
-    - ant jacoco-report
-    - cp -R build/jacoco/ $CIRCLE_ARTIFACTS/coverage/ 
+    - cp ./build/test/output/*.xml $CIRCLE_TEST_REPORTS/junit/
