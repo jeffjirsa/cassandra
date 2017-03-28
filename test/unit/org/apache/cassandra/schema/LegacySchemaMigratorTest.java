@@ -100,6 +100,8 @@ public class LegacySchemaMigratorTest
     @Test
     public void testMigrateLegacyCachingOptions() throws IOException
     {
+        CQLTester.cleanupAndLeaveDirs();
+
         assertEquals(CachingParams.CACHE_EVERYTHING, LegacySchemaMigrator.cachingFromRow("ALL"));
         assertEquals(CachingParams.CACHE_NOTHING, LegacySchemaMigrator.cachingFromRow("NONE"));
         assertEquals(CachingParams.CACHE_KEYS, LegacySchemaMigrator.cachingFromRow("KEYS_ONLY"));
