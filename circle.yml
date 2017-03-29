@@ -1,0 +1,29 @@
+machine: 
+  java: 
+    version: 'oraclejdk8'
+test:
+  pre:
+    - npm install -g junit-merge
+    - sudo pip install virtualenv
+    - sudo ifconfig -a
+    - sudo ifconfig lo:1 127.0.0.2 up
+    - sudo ifconfig lo:2 127.0.0.3 up
+    - sudo ifconfig lo:3 127.0.0.4 up
+    - sudo ifconfig lo:4 127.0.0.5 up
+    - git clone https://github.com/riptano/cassandra-dtest cassandra-dtest
+    - virtualenv --python=python2 --no-site-packages venv
+    - source venv/bin/activate
+    - pip install -r cassandra-dtest/requirements.txt
+    - pip freeze
+    - ant build
+ 
+  override:
+    - ant test:
+        parallel: true
+    - cd cassandra-dtest && GREP_COLOR= CASSANDRA_DIR=/home/ubuntu/cassandra/ ./run_dtests.py --vnodes true --nose-options="-s -v -d --with-xunit --attr=!resource-intensive":
+        parallel: true
+  post:
+    - mkdir -p $CIRCLE_TEST_REPORTS/junit/
+    - junit-merge ./build/test/output/*.xml ./cassandra-dtest/nosetests.xml
+    - cp merged-test-results.xml $CIRCLE_TEST_REPORTS/junit/
+
