@@ -89,21 +89,27 @@ public final class ThreadAwareSecurityManager extends SecurityManager
         // prevents this configuration file check and possible reload of the configration,
         // while executing sandboxed UDF code.
         Logger l = LoggerFactory.getLogger(ThreadAwareSecurityManager.class);
-        ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) l;
-        LoggerContext ctx = logbackLogger.getLoggerContext();
-
-        TurboFilterList turboFilterList = ctx.getTurboFilterList();
-        for (int i = 0; i < turboFilterList.size(); i++)
+        if (l instanceof ch.qos.logback.classic.Logger)
         {
-            TurboFilter turboFilter = turboFilterList.get(i);
-            if (turboFilter instanceof ReconfigureOnChangeFilter)
+            ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) l;
+            LoggerContext ctx = logbackLogger.getLoggerContext();
+
+            TurboFilterList turboFilterList = ctx.getTurboFilterList();
+            for (int i = 0; i < turboFilterList.size(); i++)
             {
-                ReconfigureOnChangeFilter reconfigureOnChangeFilter = (ReconfigureOnChangeFilter) turboFilter;
-                turboFilterList.set(i, new SMAwareReconfigureOnChangeFilter(reconfigureOnChangeFilter));
-                break;
+                TurboFilter turboFilter = turboFilterList.get(i);
+                if (turboFilter instanceof ReconfigureOnChangeFilter)
+                {
+                    ReconfigureOnChangeFilter reconfigureOnChangeFilter = (ReconfigureOnChangeFilter) turboFilter;
+                    turboFilterList.set(i, new SMAwareReconfigureOnChangeFilter(reconfigureOnChangeFilter));
+                    break;
+                }
             }
         }
-
+        else
+        {
+            l.warn("Non-logback logger detected. Cassandra is only tested against logback, and using other loggers may introduce errors.");
+        }
         installed = true;
     }
 
