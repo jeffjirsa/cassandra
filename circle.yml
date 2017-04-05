@@ -1,0 +1,143 @@
+version: 2
+jobs:
+  build:
+    resource_class: xlarge
+    working_directory: ~/
+    parallelism: 4
+    docker:
+      - image: ubuntu:xenial-20170410
+    steps:
+      - run:
+          name: apt-get install packages
+          command: |
+            echo "deb http://ppa.launchpad.net/webupd8team/java/ubuntu xenial main" | tee /etc/apt/sources.list.d/webupd8team-java.list
+            echo "deb-src http://ppa.launchpad.net/webupd8team/java/ubuntu xenial main" | tee -a /etc/apt/sources.list.d/webupd8team-java.list
+            apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys EEA14886
+            echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
+            apt-get update
+            apt-get install -y git-core npm python python-pip python-dev ant ant-optional oracle-java8-installer net-tools
+            ln -s /usr/bin/nodejs /usr/bin/node || true
+      - run:
+          name: Log environment information
+          command: |
+              echo '*** id ***'
+              id
+              echo '*** cat /proc/cpuinfo ***'
+              cat /proc/cpuinfo
+              echo '*** free -m ***'
+              free -m
+              echo '*** df -m ***'
+              df -m
+              echo '*** ifconfig -a ***'
+              ifconfig -a
+              echo '*** uname -a ***'
+              uname -a
+              echo '*** mount ***'
+              mount
+              echo '*** env ***'
+              env
+      - run:
+          name: Clone git repos
+          command: |
+            git clone --single-branch --depth 1 https://github.com/riptano/cassandra-dtest ~/cassandra-dtest
+            git clone --single-branch --depth 1 --branch $CIRCLE_BRANCH git://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git ~/cassandra
+      - run:
+          name: Install junit-merge
+          command: npm install -g junit-merge
+      - run:
+          name: Install virtualenv
+          command: pip install virtualenv 
+      - run:
+          name: Configure virtualenv and python dependencies
+          command: |
+            virtualenv --python=python2 --no-site-packages venv
+            source venv/bin/activate
+            export CASS_DRIVER_NO_EXTENSIONS=true
+            export CASS_DRIVER_NO_CYTHON=true
+            pip install -r ~/cassandra-dtest/requirements.txt
+            pip freeze
+      - run:
+          name: Build Cassandra
+          command: |
+            cd ~/cassandra
+            # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
+            for x in $(seq 1 3); do
+                ant clean jar
+                RETURN="$?"
+                if [ "${RETURN}" -eq "0" ]; then
+                    break
+                fi
+            done
+            # Exit, if we didn't build successfully
+            if [ "${RETURN}" -ne "0" ]; then
+                echo "Build failed with exit code: ${RETURN}"
+                exit ${RETURN}
+            fi
+          no_output_timeout: 20m
+      - run:
+          name: Determine tests to run
+          no_output_timeout: 10m
+          command: |
+            #"$HOME/cassandra-dtest/**/*.py"
+            echo `circleci tests glob "$HOME/cassandra/test/unit/**" "$HOME/cassandra-dtest/**/*.py" | grep -v upgrade_tests | grep -v "cassandra-thrift" | grep -v "thrift_bindings" | grep -v "tools" | grep -v "dtest.py" | grep -v "$HOME/cassandra-dtest/bin" | grep -v "plugins" | circleci tests split --split-by=timings --timings-type=filename` > /tmp/tests.txt
+            echo "***processed tests***"
+            cat /tmp/tests.txt | sed -e 's/\s\+/\n/g' > /tmp/processed_tests.txt
+            cat /tmp/processed_tests.txt
+            echo "***java tests***"
+            cat /tmp/processed_tests.txt | grep "\.java$" > /tmp/java_tests.txt
+            cat /tmp/java_tests.txt
+            cat /tmp/java_tests.txt | cut -c 27-1000000 | grep "Test\.java$" > /tmp/java_tests_final.txt
+            echo "***final java tests***"
+            cat /tmp/java_tests_final.txt
+            echo "***python tests***"
+            cat /tmp/processed_tests.txt | grep "\.py$" > /tmp/python_tests.txt
+            cat /tmp/python_tests.txt
+            echo "***final python tests***"
+            cat /tmp/python_tests.txt | tr '\n' ' ' > /tmp/python_tests_final.txt
+            cat /tmp/python_tests_final.txt
+      - run:
+         name: Run unit tests
+         command: |
+            cd ~/cassandra
+            ant testclasslist -Dtest.classlistfile=/tmp/java_tests_final.txt || true
+         no_output_timeout: 15m
+      - run:
+          name: Run dtests
+          no_output_timeout: 70m
+          command: |
+            source ~/venv/bin/activate
+            cd ~/cassandra-dtest
+            mkdir -p /tmp/dtest
+            export allow_root="yes"
+            export CASSANDRA_DIR=$HOME/cassandra
+            export PYTHONIOENCODING="utf-8"
+            export PYTHONUNBUFFERED=true
+            export CASS_DRIVER_NO_EXTENSIONS=true
+            export CASS_DRIVER_NO_CYTHON=true
+            export CCM_MAX_HEAP_SIZE="2048M"
+            export CCM_HEAP_NEWSIZE="200M"
+            export NUM_TOKENS="32"
+            ./run_dtests.py --vnodes true --nose-options="--verbosity=3 --with-xunit --nocapture --attr=!resource-intensive" `cat /tmp/python_tests_final.txt`| tee -a /tmp/dtest/stdout.txt || true
+      - run:
+          name: Collect and merge test results
+          command: |
+            rm -f $HOME/cassandra-dtest/logs/last || true
+            mkdir -p /tmp/results/junit || true
+            junit-merge ~/cassandra/build/test/output/*.xml ~/cassandra-dtest/nosetests.xml || true
+            cp  merged-test-results.xml /tmp/results/junit || true
+#            junit-merge ~/cassandra/build/test/output/*.xml ~/cassandra-dtest/nosetests.xml
+      - store_test_results:
+          path: /tmp/results
+      - store_artifacts:
+          path: ~/cassandra/build/test/output
+          destination: junitxml
+      - store_artifacts:
+          path: ~/cassandra/build/test/logs
+          destination: logs
+      - store_artifacts:
+          path: /tmp/dtest
+          destination: dtest
+      - store_artifacts:
+          path: ~/cassandra-dtest/logs
+          destination: dtest_logs
+
