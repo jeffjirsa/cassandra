@@ -39,6 +39,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.IMetadataComponentSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SerializationHeader
@@ -396,11 +397,11 @@ public class SerializationHeader
 
     public static class Serializer implements IMetadataComponentSerializer<Component>
     {
-        public void serializeForMessaging(SerializationHeader header, ColumnFilter selection, DataOutputPlus out, boolean hasStatic) throws IOException
+        public void serializeForMessaging(SerializationHeader header, ColumnFilter selection, DataOutputPlus out, boolean hasStatic, int version) throws IOException
         {
             EncodingStats.serializer.serialize(header.stats, out);
 
-            if (selection == null)
+            if (version >= MessagingService.VERSION_31 || selection == null)
             {
                 if (hasStatic)
                     Columns.serializer.serialize(header.columns.statics, out);
@@ -414,7 +415,7 @@ public class SerializationHeader
             }
         }
 
-        public SerializationHeader deserializeForMessaging(DataInputPlus in, CFMetaData metadata, ColumnFilter selection, boolean hasStatic) throws IOException
+        public SerializationHeader deserializeForMessaging(DataInputPlus in, CFMetaData metadata, ColumnFilter selection, boolean hasStatic, int version) throws IOException
         {
             EncodingStats stats = EncodingStats.serializer.deserialize(in);
 
@@ -422,7 +423,7 @@ public class SerializationHeader
             List<AbstractType<?>> clusteringTypes = typesOf(metadata.clusteringColumns());
 
             Columns statics, regulars;
-            if (selection == null)
+            if (version >= MessagingService.VERSION_31 || selection == null)
             {
                 statics = hasStatic ? Columns.serializer.deserialize(in, metadata) : Columns.NONE;
                 regulars = Columns.serializer.deserialize(in, metadata);
@@ -436,11 +437,11 @@ public class SerializationHeader
             return new SerializationHeader(false, keyType, clusteringTypes, new PartitionColumns(statics, regulars), stats, null);
         }
 
-        public long serializedSizeForMessaging(SerializationHeader header, ColumnFilter selection, boolean hasStatic)
+        public long serializedSizeForMessaging(SerializationHeader header, ColumnFilter selection, boolean hasStatic, int version)
         {
             long size = EncodingStats.serializer.serializedSize(header.stats);
 
-            if (selection == null)
+            if (version >= MessagingService.VERSION_31 || selection == null)
             {
                 if (hasStatic)
                     size += Columns.serializer.serializedSize(header.columns.statics);

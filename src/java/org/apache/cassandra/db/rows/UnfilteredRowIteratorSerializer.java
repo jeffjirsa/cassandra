@@ -117,7 +117,7 @@ public class UnfilteredRowIteratorSerializer
 
         out.writeByte((byte)flags);
 
-        SerializationHeader.serializer.serializeForMessaging(header, selection, out, hasStatic);
+        SerializationHeader.serializer.serializeForMessaging(header, selection, out, hasStatic, version);
 
         if (!partitionDeletion.isLive())
             header.writeDeletionTime(partitionDeletion, out);
@@ -154,7 +154,7 @@ public class UnfilteredRowIteratorSerializer
         Row staticRow = iterator.staticRow();
         boolean hasStatic = staticRow != Rows.EMPTY_STATIC_ROW;
 
-        size += SerializationHeader.serializer.serializedSizeForMessaging(header, selection, hasStatic);
+        size += SerializationHeader.serializer.serializedSizeForMessaging(header, selection, hasStatic, version);
 
         if (!partitionDeletion.isLive())
             size += header.deletionTimeSerializedSize(partitionDeletion);
@@ -187,7 +187,7 @@ public class UnfilteredRowIteratorSerializer
         boolean hasStatic = (flags & HAS_STATIC_ROW) != 0;
         boolean hasRowEstimate = (flags & HAS_ROW_ESTIMATE) != 0;
 
-        SerializationHeader header = SerializationHeader.serializer.deserializeForMessaging(in, metadata, selection, hasStatic);
+        SerializationHeader header = SerializationHeader.serializer.deserializeForMessaging(in, metadata, selection, hasStatic, version);
 
         DeletionTime partitionDeletion = hasPartitionDeletion ? header.readDeletionTime(in) : DeletionTime.LIVE;
 

@@ -438,8 +438,12 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
 
         /**
          * If both ends have a pre-shared superset of the columns we are serializing, we can send them much
-         * more efficiently. Both ends must provide the identically same set of columns.
+         * more efficiently. Both ends must provide the identically same set of columns. Unfortunately,
+         * it's not possible to guarantee we have a pre-shared superset of columns during a schema change without
+         * just sending that column list, so we end up negating any benefit here anyway. This was used only for
+         * MessagingService.VERSION_30 , and deprecated with VERSION_31
          */
+        @Deprecated
         public void serializeSubset(Collection<ColumnDefinition> columns, Columns superset, DataOutputPlus out) throws IOException
         {
             /**
@@ -470,6 +474,7 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
             }
         }
 
+        @Deprecated
         public long serializedSubsetSize(Collection<ColumnDefinition> columns, Columns superset)
         {
             int columnCount = columns.size();
@@ -488,6 +493,7 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
             }
         }
 
+        @Deprecated
         public Columns deserializeSubset(Columns superset, DataInputPlus in) throws IOException
         {
             long encoded = in.readUnsignedVInt();
@@ -519,6 +525,7 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
 
         // encodes a 1 bit for every *missing* column, on the assumption presence is more common,
         // and because this is consistent with encoding 0 to represent all present
+        @Deprecated
         private static long encodeBitmap(Collection<ColumnDefinition> columns, Columns superset, int supersetCount)
         {
             long bitmap = 0L;
@@ -543,6 +550,7 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
             return bitmap;
         }
 
+        @Deprecated
         @DontInline
         private void serializeLargeSubset(Collection<ColumnDefinition> columns, int columnCount, Columns superset, int supersetCount, DataOutputPlus out) throws IOException
         {
@@ -576,6 +584,7 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
             }
         }
 
+        @Deprecated
         @DontInline
         private Columns deserializeLargeSubset(DataInputPlus in, Columns superset, int delta) throws IOException
         {
@@ -615,6 +624,7 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
             return new Columns(builder.build());
         }
 
+        @Deprecated
         @DontInline
         private int serializeLargeSubsetSize(Collection<ColumnDefinition> columns, int columnCount, Columns superset, int supersetCount)
         {
