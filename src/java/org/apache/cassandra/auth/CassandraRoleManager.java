@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.*;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
@@ -157,7 +158,20 @@ public class CassandraRoleManager implements IRoleManager
         loadRoleStatement = (SelectStatement) prepare("SELECT * from %s.%s WHERE role = ?",
                                                       SchemaConstants.AUTH_KEYSPACE_NAME,
                                                       AuthKeyspace.ROLES);
-        // If the old users table exists, we may need to migrate the legacy authn
+
+        try
+        {
+            // We don't want to wait 10s for the scheduleSetupTask to complete before
+            // we flip isClusterReady to true if we can be sure we're already setup
+            if (hasExistingRoles())
+                isClusterReady = true;
+        }
+        catch (RequestExecutionException e)
+        {
+            // hasExistingRoles() failed, so we'll continue with setup
+        }
+
+        // If the old users table exists, we may need to migrate the legacy auth
         // data to the new table. We also need to prepare a statement to read from
         // it, so we can continue to use the old tables while the cluster is upgraded.
         // Otherwise, we may need to create a default superuser role to enable others
@@ -361,7 +375,8 @@ public class CassandraRoleManager implements IRoleManager
         }
     }
 
-    private static boolean hasExistingRoles() throws RequestExecutionException
+    @VisibleForTesting
+    public static boolean hasExistingRoles() throws RequestExecutionException
     {
         // Try looking up the 'cassandra' default role first, to avoid the range query if possible.
         String defaultSUQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, DEFAULT_SUPERUSER_NAME);
@@ -369,6 +384,12 @@ public class CassandraRoleManager implements IRoleManager
         return !QueryProcessor.process(defaultSUQuery, ConsistencyLevel.ONE).isEmpty()
                || !QueryProcessor.process(defaultSUQuery, ConsistencyLevel.QUORUM).isEmpty()
                || !QueryProcessor.process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
+    }
+
+    @VisibleForTesting
+    public boolean isClusterReady()
+    {
+        return isClusterReady;
     }
 
     private void scheduleSetupTask(final Callable<Void> setupTask)
