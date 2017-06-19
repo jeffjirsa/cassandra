@@ -163,7 +163,7 @@ public class CassandraRoleManager implements IRoleManager
         {
             // We don't want to wait 10s for the scheduleSetupTask to complete before
             // we flip isClusterReady to true if we can be sure we're already setup
-            if (hasExistingRoles())
+            if (!StorageService.instance.getTokenMetadata().sortedTokens().isEmpty() && hasExistingRoles())
                 isClusterReady = true;
         }
         catch (RequestExecutionException e)
