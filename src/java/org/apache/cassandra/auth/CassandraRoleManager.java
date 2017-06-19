@@ -21,7 +21,6 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.*;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
@@ -375,8 +374,7 @@ public class CassandraRoleManager implements IRoleManager
         }
     }
 
-    @VisibleForTesting
-    public static boolean hasExistingRoles() throws RequestExecutionException
+    static boolean hasExistingRoles() throws RequestExecutionException
     {
         // Try looking up the 'cassandra' default role first, to avoid the range query if possible.
         String defaultSUQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, DEFAULT_SUPERUSER_NAME);
@@ -386,8 +384,7 @@ public class CassandraRoleManager implements IRoleManager
                || !QueryProcessor.process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
     }
 
-    @VisibleForTesting
-    public boolean isClusterReady()
+    boolean isClusterReady()
     {
         return isClusterReady;
     }
