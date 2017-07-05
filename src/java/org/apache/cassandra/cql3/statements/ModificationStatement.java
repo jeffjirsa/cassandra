@@ -630,7 +630,7 @@ public abstract class ModificationStatement implements CQLStatement
                 && restrictions.hasClusteringColumnsRestriction()
                 && restrictions.isColumnRange())
         {
-            Slices slices = createSlice(options);
+            Slices slices = createSlices(options);
 
             // If all the ranges were invalid we do not need to do anything.
             if (slices.isEmpty())
@@ -693,7 +693,7 @@ public abstract class ModificationStatement implements CQLStatement
         }
     }
 
-    private Slices createSlice(QueryOptions options)
+    Slices createSlices(QueryOptions options)
     {
         SortedSet<Slice.Bound> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, options);
         SortedSet<Slice.Bound> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, options);
@@ -735,7 +735,7 @@ public abstract class ModificationStatement implements CQLStatement
         return new UpdateParameters(cfm, updatedColumns(), options, getTimestamp(now, options), getTimeToLive(options), lists);
     }
 
-    private Slices toSlices(SortedSet<Slice.Bound> startBounds, SortedSet<Slice.Bound> endBounds)
+    Slices toSlices(SortedSet<Slice.Bound> startBounds, SortedSet<Slice.Bound> endBounds)
     {
         assert startBounds.size() == endBounds.size();
 
