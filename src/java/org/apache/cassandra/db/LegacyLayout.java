@@ -511,12 +511,12 @@ public abstract class LegacyLayout
         {
             size += ByteBufferUtil.serializedSizeWithShortLength(cell.name.encode(partition.metadata()));
             size += 1;  // serialization flags
-            if (cell.kind == LegacyLayout.LegacyCell.Kind.EXPIRING)
+            if (cell.isExpiring())
             {
                 size += TypeSizes.sizeof(cell.ttl);
                 size += TypeSizes.sizeof(cell.localDeletionTime);
             }
-            else if (cell.kind == LegacyLayout.LegacyCell.Kind.DELETED)
+            else if (cell.isTombstone())
             {
                 size += TypeSizes.sizeof(cell.timestamp);
                 // localDeletionTime replaces cell.value as the body
@@ -524,7 +524,13 @@ public abstract class LegacyLayout
                 size += TypeSizes.sizeof(cell.localDeletionTime);
                 continue;
             }
-            else if (cell.kind == LegacyLayout.LegacyCell.Kind.COUNTER)
+            else if (cell.isCounterUpdate())
+            {
+                size += TypeSizes.sizeof(cell.timestamp);
+                size += ByteBufferUtil.serializedSizeWithLength(ByteBufferUtil.bytes(CounterContext.instance().getLocalCount(cell.value)));
+                continue;
+            }
+            else if (cell.isCounter())
             {
                 size += TypeSizes.sizeof(Long.MIN_VALUE);  // timestampOfLastDelete
             }
@@ -1518,7 +1524,7 @@ public abstract class LegacyLayout
         private boolean isCounterUpdate()
         {
             // See UpdateParameters.addCounter() for more details on this
-            return isCounter() && CounterContext.instance().isLocal(value);
+            return isCounter() && CounterContext.instance().hasOnlyLocal(value);
         }
 
         public ClusteringPrefix clustering()

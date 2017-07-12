@@ -682,11 +682,21 @@ public class CounterContext
     }
 
     /**
-     * Checks if a context is local
+     * Checks if a context has only local shards, essentially the inverse of
      */
-    public boolean isLocal(ByteBuffer context)
+    public boolean hasOnlyLocal(ByteBuffer context)
     {
-        return ContextState.wrap(context).isLocal();
+        int totalCount = (context.remaining() - headerLength(context)) / STEP_LENGTH;
+        int localAndGlobalCount = Math.abs(context.getShort(context.position()));
+
+        if (localAndGlobalCount < totalCount)
+            return false; // remote shard(s) present
+
+        for (int i = 0; i < localAndGlobalCount; i++)
+            if (context.getShort(context.position() + HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH) < 0)
+                return false; // found a local shard
+
+        return true;
     }
 
     /**
