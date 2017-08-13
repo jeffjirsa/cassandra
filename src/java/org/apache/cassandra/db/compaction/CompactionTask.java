@@ -327,14 +327,16 @@ public class CompactionTask extends AbstractCompactionTask
         {
             return ActiveRepairService.NO_PENDING_REPAIR;
         }
-        Set<UUID> ids = new HashSet<>();
-        for (SSTableReader sstable: sstables)
-            ids.add(sstable.getSSTableMetadata().pendingRepair);
+        if (sstables.size() != 1)
+        {
+            Set<UUID> ids = new HashSet<>();
+            for (SSTableReader sstable: sstables)
+                ids.add(sstable.getSSTableMetadata().pendingRepair);
 
-        if (ids.size() != 1)
             throw new RuntimeException(String.format("Attempting to compact pending repair sstables with sstables from other repair, or sstables not pending repair: %s", ids));
+        }
 
-        return ids.iterator().next();
+        return sstables.iterator().next().getSSTableMetadata().pendingRepair;
     }
 
 
