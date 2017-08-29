@@ -406,6 +406,13 @@ public abstract class ModificationStatement implements CQLStatement
         return !conditions.isEmpty();
     }
 
+    public boolean hasSlices()
+    {
+        return type.allowClusteringColumnSlices()
+               && getRestrictions().hasClusteringColumnsRestrictions()
+               && getRestrictions().isColumnRange();
+    }
+
     public ResultMessage execute(QueryState queryState, QueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
@@ -629,9 +636,7 @@ public abstract class ModificationStatement implements CQLStatement
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options);
 
-        if (type.allowClusteringColumnSlices()
-                && restrictions.hasClusteringColumnsRestrictions()
-                && restrictions.isColumnRange())
+        if (hasSlices())
         {
             Slices slices = createSlices(options);
 
@@ -743,7 +748,7 @@ public abstract class ModificationStatement implements CQLStatement
         return new UpdateParameters(cfm, updatedColumns(), options, getTimestamp(now, options), getTimeToLive(options), lists);
     }
 
-    Slices toSlices(SortedSet<ClusteringBound> startBounds, SortedSet<ClusteringBound> endBounds)
+    private Slices toSlices(SortedSet<ClusteringBound> startBounds, SortedSet<ClusteringBound> endBounds)
     {
         assert startBounds.size() == endBounds.size();
 

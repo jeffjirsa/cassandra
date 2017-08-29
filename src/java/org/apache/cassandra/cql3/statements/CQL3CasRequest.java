@@ -56,7 +56,7 @@ public class CQL3CasRequest implements CASRequest
     private final TreeMap<Clustering, RowCondition> conditions;
 
     private final List<RowUpdate> updates = new ArrayList<>();
-    private final List<SliceUpdate> sliceUpdates = new ArrayList<>();
+    private final List<RangeDeletion> rangeDeletions = new ArrayList<>();
 
     public CQL3CasRequest(CFMetaData cfm,
                           DecoratedKey key,
@@ -79,9 +79,9 @@ public class CQL3CasRequest implements CASRequest
         updates.add(new RowUpdate(clustering, stmt, options, timestamp));
     }
 
-    public void addSliceUpdate(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp)
+    public void addRangeDeletion(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp)
     {
-        sliceUpdates.add(new SliceUpdate(slice, stmt, options, timestamp));
+        rangeDeletions.add(new RangeDeletion(slice, stmt, options, timestamp));
     }
 
     public void addNotExist(Clustering clustering) throws InvalidRequestException
@@ -232,7 +232,7 @@ public class CQL3CasRequest implements CASRequest
         PartitionUpdate update = new PartitionUpdate(cfm, key, updatedColumns(), conditions.size());
         for (RowUpdate upd : updates)
             upd.applyUpdates(current, update);
-        for (SliceUpdate upd : sliceUpdates)
+        for (RangeDeletion upd : rangeDeletions)
             upd.applyUpdates(current, update);
 
         Keyspace.openAndGetStore(cfm).indexManager.validate(update);
@@ -268,14 +268,14 @@ public class CQL3CasRequest implements CASRequest
         }
     }
 
-    private class SliceUpdate
+    private class RangeDeletion
     {
         private final Slice slice;
         private final ModificationStatement stmt;
         private final QueryOptions options;
         private final long timestamp;
 
-        private SliceUpdate(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp)
+        private RangeDeletion(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp)
         {
             this.slice = slice;
             this.stmt = stmt;
