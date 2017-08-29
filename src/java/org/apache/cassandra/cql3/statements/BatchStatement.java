@@ -417,9 +417,7 @@ public class BatchStatement implements CQLStatement
                        "IN on the clustering key columns is not supported with conditional %s",
                        statement.type.isUpdate()? "updates" : "deletions");
 
-            if (statement.type.allowClusteringColumnSlices()
-                    && statement.getRestrictions().hasClusteringColumnsRestriction()
-                    && statement.getRestrictions().isColumnRange())
+            if (statement.hasSlices())
             {
                 // All of the conditions require meaningful Clustering, not Slices
                 assert !statement.hasConditions();
@@ -431,11 +429,12 @@ public class BatchStatement implements CQLStatement
 
                 for (Slice slice : slices)
                 {
-                    casRequest.addSliceUpdate(slice, statement, statementOptions, timestamp);
+                    casRequest.addRangeDeletion(slice, statement, statementOptions, timestamp);
                 }
 
             }
-            else {
+            else
+            {
                 Clustering clustering = Iterables.getOnlyElement(statement.createClustering(statementOptions));
                 if (statement.hasConditions())
                 {
