@@ -963,6 +963,16 @@ public class DatabaseDescriptor
         return conf.column_index_size_in_kb * 1024;
     }
 
+    public static int getColumnIndexMaxSize()
+    {
+        return conf.column_index_max_target_size_kb * 1024;
+    }
+
+    public static int getColumnIndexMaxCount()
+    {
+        return conf.column_index_max_target_index_objects;
+    }
+
     public static int getBatchSizeWarnThreshold()
     {
         return conf.batch_size_warn_threshold_in_kb * 1024;

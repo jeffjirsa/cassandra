@@ -165,6 +165,8 @@ public class Config
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     public Integer column_index_size_in_kb = 64;
+    public int column_index_max_target_size_kb = 256*1024; // downsample if we're > 2x this value
+    public int column_index_max_target_index_objects = 50000; // downsample if we're > 2x this value
     public volatile int batch_size_warn_threshold_in_kb = 5;
     public volatile int batch_size_fail_threshold_in_kb = 50;
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;

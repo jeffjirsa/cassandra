@@ -21,6 +21,10 @@ import java.io.IOException;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.primitives.Ints;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.rows.*;
@@ -31,6 +35,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnIndex
 {
+    private static final Logger logger = LoggerFactory.getLogger(ColumnIndex.class);
+
     public final long partitionHeaderLength;
     public final List<IndexHelper.IndexInfo> columnsIndex;
 
@@ -44,11 +50,15 @@ public class ColumnIndex
         this.columnsIndex = columnsIndex;
     }
 
-    public static ColumnIndex writeAndBuildIndex(UnfilteredRowIterator iterator, SequentialWriter output, SerializationHeader header, Version version) throws IOException
+    public static ColumnIndex writeAndBuildIndex(UnfilteredRowIterator iterator,
+                                                 SequentialWriter output,
+                                                 SerializationHeader header,
+                                                 Version version,
+                                                 IndexHelper.IndexInfo.Serializer idxSerializer) throws IOException
     {
         assert !iterator.isEmpty() && version.storeRows();
 
-        Builder builder = new Builder(iterator, output, header, version.correspondingMessagingVersion());
+        Builder builder = new Builder(iterator, output, header, version.correspondingMessagingVersion(), idxSerializer);
         return builder.build();
     }
 
@@ -77,22 +87,26 @@ public class ColumnIndex
 
         private int written;
         private long previousRowStart;
+        private long columnsIndexMemory; // This is only used during building, and should not be used once built.
 
         private ClusteringPrefix firstClustering;
         private ClusteringPrefix lastClustering;
 
         private DeletionTime openMarker;
+        private final IndexHelper.IndexInfo.Serializer idxSerializer;
 
         public Builder(UnfilteredRowIterator iterator,
                        SequentialWriter writer,
                        SerializationHeader header,
-                       int version)
+                       int version,
+                       IndexHelper.IndexInfo.Serializer idxSerializer)
         {
             this.iterator = iterator;
             this.writer = writer;
             this.header = header;
             this.version = version;
             this.initialPosition = writer.position();
+            this.idxSerializer = idxSerializer;
         }
 
         private void writePartitionHeader(UnfilteredRowIterator iterator) throws IOException
@@ -128,6 +142,7 @@ public class ColumnIndex
                                                                          openMarker);
             columnsIndex.add(cIndexInfo);
             firstClustering = null;
+            columnsIndexMemory += IndexHelper.IndexInfo.size(idxSerializer, cIndexInfo);
         }
 
         private void add(Unfiltered unfiltered) throws IOException
@@ -172,7 +187,65 @@ public class ColumnIndex
 
             // we should always have at least one computed index block, but we only write it out if there is more than that.
             assert columnsIndex.size() > 0 && headerLength >= 0;
+
+            // Do we need to downsample?
+            if (columnsIndexMemory > DatabaseDescriptor.getColumnIndexMaxSize()
+                                                     || columnsIndex.size() > DatabaseDescriptor.getColumnIndexMaxCount())
+            {
+                int mergeFactor = Math.max(Ints.checkedCast(columnsIndexMemory / DatabaseDescriptor.getColumnIndexMaxSize()),
+                                           Ints.checkedCast(columnsIndex.size() / DatabaseDescriptor.getColumnIndexMaxCount()));
+
+
+                if (mergeFactor > 1)
+                {
+                    logger.info("Merge Factor {} , Downsampling column index:  {} > {} (starting at {} elements)",
+                                mergeFactor, columnsIndexMemory, DatabaseDescriptor.getColumnIndexMaxSize(), columnsIndex.size());
+                    downsampleColumnIndexList(columnsIndex, mergeFactor);
+                    logger.info("Downsampled column index:  {} > {} (ending at {} elements)",
+                                columnsIndexMemory, DatabaseDescriptor.getColumnIndexMaxSize(), columnsIndex.size());
+
+                }
+            }
             return new ColumnIndex(headerLength, columnsIndex);
         }
     }
+
+    /**
+      * Downsample the provided list by a the scaling factor, merging adjacent records as needed
+      *
+      * @param indexList List of IndexInfo objects that will be scaled back (in place)
+      * @param mergeFactor integer representing the number of adjacent IndexInfo objects to merge
+      */
+    @VisibleForTesting
+    static void downsampleColumnIndexList(List<IndexHelper.IndexInfo> indexList, int mergeFactor)
+    {
+            if (mergeFactor < 2)
+                    return;
+
+            int startIndex = indexList.size() - 1; // Tail of the list
+            while (startIndex > 0)
+                {
+                    // We'll downsample by updating the list as we walk it.
+                    // We'll pick one object to keep, and (mergeFactor-1) adjacent (previous) objects to merge into it
+                    // We'll grab the first and last elements in the set to merge and merge them together
+                    // updating the width to account for all of the skipped elements in between.
+                    int endIndex = startIndex - mergeFactor + 1;
+                if (endIndex < 0)
+                        break;
+
+                IndexHelper.IndexInfo mergeRight = indexList.get(startIndex);
+                IndexHelper.IndexInfo mergeLeft = indexList.get(endIndex);
+                IndexHelper.IndexInfo merged = IndexHelper.IndexInfo.merge(mergeLeft, mergeRight);
+                indexList.set(startIndex, merged);
+
+                // Now we remove the other merged objects
+                for (int i = 0; i < (mergeFactor - 1); i++)
+                    {
+                        startIndex--; // Adjust the pointer one to the left, and then remove it
+                    indexList.remove(startIndex);
+                }
+                // Then shift our pointer to the next (previous) index object in the list
+                startIndex--;
+            }
+        }
 }

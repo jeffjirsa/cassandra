@@ -188,5 +188,19 @@ public final class IndexHelper
                  + lastName.unsharedHeapSize()
                  + (endOpenMarker == null ? 0 : endOpenMarker.unsharedHeapSize());
         }
+
+        public static long size(Serializer serializer, IndexInfo indexInfo)
+        {
+            return serializer.serializedSize(indexInfo);
+        }
+
+        public static IndexInfo merge(IndexInfo mergeLeft, IndexInfo mergeRight)
+        {
+            return new IndexInfo( mergeLeft.firstName,
+                                  mergeRight.lastName,
+                                  mergeLeft.offset,
+                                  ((mergeRight.offset - mergeLeft.offset) + mergeRight.width),
+                                  mergeRight.endOpenMarker);
+        }
     }
 }
