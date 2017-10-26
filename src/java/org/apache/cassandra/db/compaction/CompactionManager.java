@@ -30,6 +30,7 @@ import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
@@ -1729,6 +1730,31 @@ public class CompactionManager implements CompactionManagerMBean
     public void setMaximumValidatorThreads(int number)
     {
         validationExecutor.setMaximumPoolSize(number);
+    }
+
+
+    /*
+     * Column Index Tuning
+     */
+    public int getColumnIndexMaxSizeInKB()
+    {
+        return DatabaseDescriptor.getColumnIndexMaxSizeInBytes() / 1024;
+    }
+
+    public void setColumnIndexMaxSizeInKB(int size)
+    {
+        Preconditions.checkArgument(size <= Integer.MAX_VALUE / 1024, "Invalid column index max size - must be less than 2097152kb", size);
+        DatabaseDescriptor.setColumnIndexMaxSizeInBytes(size * 1024);
+    }
+
+    public int getColumnIndexMaxCount()
+    {
+        return DatabaseDescriptor.getColumnIndexMaxCount();
+    }
+
+    public void setColumnIndexMaxCount(int count)
+    {
+        DatabaseDescriptor.setColumnIndexMaxCount(count);
     }
 
     /**

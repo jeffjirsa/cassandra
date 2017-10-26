@@ -27,6 +27,7 @@ import java.nio.file.Paths;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
@@ -754,6 +755,13 @@ public class DatabaseDescriptor
 
         if (conf.otc_coalescing_enough_coalesced_messages <= 0)
             throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be positive", false);
+
+        if (conf.column_index_max_target_index_objects <= 0 )
+            throw new ConfigurationException("column_index_max_target_index_objects must be positive", false);
+
+        if (conf.column_index_max_target_size_in_kb <= 0 || conf.column_index_max_target_size_in_kb > Integer.MAX_VALUE / 1024)
+            throw new ConfigurationException("column_index_max_target_size_in_kb must be between 1 and 2097152", false);
+
     }
 
     /**
@@ -961,6 +969,28 @@ public class DatabaseDescriptor
     public static int getColumnIndexSize()
     {
         return conf.column_index_size_in_kb * 1024;
+    }
+
+    public static int getColumnIndexMaxSizeInBytes()
+    {
+            return Ints.checkedCast(conf.column_index_max_target_size_in_kb * 1024L);
+        }
+
+    public static void setColumnIndexMaxSizeInBytes(int size)
+    {
+        Preconditions.checkArgument(size / 1024 > 0, "Invalid column index max size - must be at least 1kb", size);
+        conf.column_index_max_target_size_in_kb = size / 1024;
+    }
+
+    public static int getColumnIndexMaxCount()
+    {
+        return conf.column_index_max_target_index_objects;
+    }
+
+    public static void setColumnIndexMaxCount(int objects)
+    {
+        Preconditions.checkArgument(objects  > 0, "Invalid column index max count");
+        conf.column_index_max_target_index_objects = objects;
     }
 
     public static int getBatchSizeWarnThreshold()

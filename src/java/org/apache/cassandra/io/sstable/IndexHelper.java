@@ -90,14 +90,14 @@ public final class IndexHelper
     {
         private static final long EMPTY_SIZE = ObjectSizes.measure(new IndexInfo(null, null, 0, 0, null));
 
-        public final long offset;
-        public final long width;
-        public final ClusteringPrefix firstName;
-        public final ClusteringPrefix lastName;
+        public long offset;                 // Can only change on merge
+        public long width;                  // Can only change on merge
+        public final ClusteringPrefix firstName;  // Can only change on merge
+        public ClusteringPrefix lastName;
 
         // If at the end of the index block there is an open range tombstone marker, this marker
         // deletion infos. null otherwise.
-        public final DeletionTime endOpenMarker;
+        public DeletionTime endOpenMarker;
 
         public IndexInfo(ClusteringPrefix firstName,
                          ClusteringPrefix lastName,
@@ -187,6 +187,24 @@ public final class IndexHelper
                  + firstName.unsharedHeapSize()
                  + lastName.unsharedHeapSize()
                  + (endOpenMarker == null ? 0 : endOpenMarker.unsharedHeapSize());
+        }
+
+        /**
+          * Merge an IndexInfo object with a different IndexInfo element later in the index
+          * The mergeEnd element SHOULD BE DISCARDED to avoid tampering with the underlying objects bytebuffer
+          *
+          * @param mergeEnd The previous IndexInfo element in the index, to be merged and removed
+          */
+        public void expandInPlace(IndexInfo mergeEnd)
+        {
+            // We always merge with an item in the list further down the list.
+            // The only exception is where size % mergefactor == 1, when we'll
+            // be left with a single element that we merge with itself.
+            assert this.offset <= mergeEnd.offset;
+            this.width = ((mergeEnd.offset - this.offset) + mergeEnd.width);
+            // Copy these as-is, so we don't have to split and merge the bytebuffers
+            this.lastName = mergeEnd.lastName;
+            this.endOpenMarker = mergeEnd.endOpenMarker;
         }
     }
 }

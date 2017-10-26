@@ -106,4 +106,15 @@ public interface CompactionManagerMBean
      * @param number New maximum of validator threads
      */
     public void setMaximumValidatorThreads(int number);
+
+
+    /**
+     *
+     * Column Index Tuning
+     */
+    public int getColumnIndexMaxSizeInKB();
+    public void setColumnIndexMaxSizeInKB(int size);
+    public int getColumnIndexMaxCount();
+    public void setColumnIndexMaxCount(int count);
+
 }

@@ -21,16 +21,24 @@ import java.io.IOException;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.primitives.Ints;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnIndex
 {
+    private static final Logger logger = LoggerFactory.getLogger(ColumnIndex.class);
+
     public final long partitionHeaderLength;
     public final List<IndexHelper.IndexInfo> columnsIndex;
 
@@ -69,7 +77,7 @@ public class ColumnIndex
         private final SerializationHeader header;
         private final int version;
 
-        private final List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<>();
+        private List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<>();
         private final long initialPosition;
         private long headerLength = -1;
 
@@ -77,6 +85,7 @@ public class ColumnIndex
 
         private int written;
         private long previousRowStart;
+        private long columnsIndexMemory; // This is only used during building, and should not be used once built.
 
         private ClusteringPrefix firstClustering;
         private ClusteringPrefix lastClustering;
@@ -128,6 +137,7 @@ public class ColumnIndex
                                                                          openMarker);
             columnsIndex.add(cIndexInfo);
             firstClustering = null;
+            columnsIndexMemory += cIndexInfo.unsharedHeapSize();
         }
 
         private void add(Unfiltered unfiltered) throws IOException
@@ -172,7 +182,69 @@ public class ColumnIndex
 
             // we should always have at least one computed index block, but we only write it out if there is more than that.
             assert columnsIndex.size() > 0 && headerLength >= 0;
+
+            // Do we need to downsample?
+            if (columnsIndexMemory > DatabaseDescriptor.getColumnIndexMaxSizeInBytes()
+                || columnsIndex.size() > DatabaseDescriptor.getColumnIndexMaxCount())
+            {
+                int mergeFactor = Math.max(Ints.checkedCast(columnsIndexMemory) / DatabaseDescriptor.getColumnIndexMaxSizeInBytes(),
+                                           columnsIndex.size() / DatabaseDescriptor.getColumnIndexMaxCount());
+
+
+                if (mergeFactor > 1)
+                {
+                    logger.info("Downsampling column index ({}/{} bytes, {}/{} items, merge factor {})",
+                                columnsIndexMemory, DatabaseDescriptor.getColumnIndexMaxSizeInBytes(),
+                                columnsIndex.size(), DatabaseDescriptor.getColumnIndexMaxCount(), mergeFactor);
+                    columnsIndex = downsampleColumnIndexList(columnsIndex, mergeFactor);
+                    logger.info("Downsampled column index to {} elements ", columnsIndex.size());
+                    StorageMetrics.columnIndexDownsamples.inc();
+                }
+
+            }
+            columnsIndexMemory = -1;
             return new ColumnIndex(headerLength, columnsIndex);
         }
     }
+
+    /**
+      * Downsample the provided list by a the scaling factor, merging adjacent records as needed
+      *
+      * @param indexList List of IndexInfo objects that will be scaled back (in place)
+      * @param mergeFactor integer representing the number of adjacent IndexInfo objects to merge
+      */
+    @VisibleForTesting
+    static List<IndexHelper.IndexInfo> downsampleColumnIndexList(List<IndexHelper.IndexInfo> indexList, int mergeFactor)
+    {
+        Preconditions.checkArgument(mergeFactor >= 2, "Invalid attempt to downsample column index by merge factor less than 2: ", mergeFactor);
+
+        // Presize the downsampled list
+        int finalSize = indexList.size() / mergeFactor;
+        if (indexList.size() % mergeFactor > 0)
+        finalSize = finalSize + 1;
+
+        List <IndexHelper.IndexInfo> downsampled = new ArrayList<>(finalSize);
+
+        // If the original list size is not evenly divisible by the merge factor,
+        // the last element of the downsampled list will be smaller, being comprised
+        // of the modulo elements (which could be a single element from the original list).
+        for (int l = 0; l < indexList.size(); l += mergeFactor)
+        {
+            int r = Math.min(l + mergeFactor - 1, indexList.size() - 1);
+
+            IndexHelper.IndexInfo left = indexList.get(l);
+            IndexHelper.IndexInfo right = indexList.get(r);
+
+            left.expandInPlace(right);
+            downsampled.add(left);
+
+            for (int i = l; i < r + 1; i++)
+                indexList.set(i, null);
+        }
+
+         assert finalSize == downsampled.size();
+
+         return downsampled;
+    }
+
 }
