@@ -39,11 +39,14 @@ public class OverlapIterator<I extends Comparable<? super I>, V>
     // indexing into sortedByMax, tracks the next interval to exclude
     int nextToExclude;
     final List<Interval<I, V>> sortedByMax;
-    final Set<V> overlaps = new HashSet<>();
-    final Set<V> accessible = Collections.unmodifiableSet(overlaps);
+    final SortedSet<V> overlaps;
+    final SortedSet<V> accessible;
 
-    public OverlapIterator(Collection<Interval<I, V>> intervals)
+    public OverlapIterator(Collection<Interval<I, V>> intervals, Comparator<V> comparator)
     {
+        overlaps = new TreeSet<V>(comparator);
+        accessible = Collections.unmodifiableSortedSet(overlaps);
+
         sortedByMax = new ArrayList<>(intervals);
         Collections.sort(sortedByMax, Interval.<I, V>maxOrdering());
         // we clone after first sorting by max;  this is quite likely to make sort cheaper, since a.max < b.max
@@ -67,7 +70,7 @@ public class OverlapIterator<I extends Comparable<? super I>, V>
             overlaps.remove(sortedByMax.get(nextToExclude++).data);
     }
 
-    public Set<V> overlaps()
+    public SortedSet<V> overlaps()
     {
         return accessible;
     }

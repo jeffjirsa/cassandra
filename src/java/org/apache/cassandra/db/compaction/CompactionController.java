@@ -134,7 +134,8 @@ public class CompactionController implements AutoCloseable
             overlappingSSTables = Refs.tryRef(Collections.<SSTableReader>emptyList());
         else
             overlappingSSTables = cfs.getAndReferenceOverlappingLiveSSTables(compacting);
-        this.overlapIterator = new OverlapIterator<>(buildIntervals(overlappingSSTables));
+        this.overlapIterator = new OverlapIterator<>(buildIntervals(overlappingSSTables),
+                Comparator.comparing(SSTableReader::getMinTimestamp));
     }
 
     public Set<SSTableReader> getFullyExpiredSSTables()
@@ -263,7 +264,8 @@ public class CompactionController implements AutoCloseable
             return time -> false;
 
         overlapIterator.update(key);
-        Set<SSTableReader> filteredSSTables = overlapIterator.overlaps();
+        SortedSet<SSTableReader> filteredSSTables = overlapIterator.overlaps();
+
         Iterable<Memtable> memtables = cfs.getTracker().getView().getAllMemtables();
         long minTimestampSeen = Long.MAX_VALUE;
         boolean hasTimestamp = false;
@@ -275,8 +277,12 @@ public class CompactionController implements AutoCloseable
             if (sstable.getBloomFilter() instanceof AlwaysPresentFilter && sstable.getPosition(key, SSTableReader.Operator.EQ, false) != null
                 || sstable.getBloomFilter().isPresent(key))
             {
-                minTimestampSeen = Math.min(minTimestampSeen, sstable.getMinTimestamp());
+                minTimestampSeen = sstable.getMinTimestamp();
                 hasTimestamp = true;
+
+                // SSTables are presented to us in order by minTimestamp, so if we have seen any that contain our key
+                // we have seen all we need to.
+                break;
             }
         }
 
