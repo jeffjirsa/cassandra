@@ -129,10 +129,12 @@ public abstract class UnfilteredPartitionIterators
             {
                 UnfilteredRowIterators.MergeListener rowListener = listener.getRowMergeListener(partitionKey, toMerge);
 
+                // Make a single empty iterator object to merge, we don't need i copies
+                UnfilteredRowIterator empty = EmptyIterators.unfilteredRow(metadata, partitionKey, isReverseOrder);
                 // Replace nulls by empty iterators
                 for (int i = 0; i < toMerge.size(); i++)
                     if (toMerge.get(i) == null)
-                        toMerge.set(i, EmptyIterators.unfilteredRow(metadata, partitionKey, isReverseOrder));
+                        toMerge.set(i, empty);
 
                 return UnfilteredRowIterators.merge(toMerge, nowInSec, rowListener);
             }
