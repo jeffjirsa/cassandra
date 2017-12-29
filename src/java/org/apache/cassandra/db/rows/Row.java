@@ -618,12 +618,13 @@ public interface Row extends Unfiltered, Collection<ColumnData>
         private int rowsToMerge;
         private int lastRowSet = -1;
 
-        private final List<ColumnData> dataBuffer = new ArrayList<>();
+        private final List<ColumnData> dataBuffer;
         private final ColumnDataReducer columnDataReducer;
 
         public Merger(int size, int nowInSec, boolean hasComplex)
         {
             this.rows = new Row[size];
+            this.dataBuffer = new ArrayList<>(size);
             this.columnDataIterators = new ArrayList<>(size);
             this.columnDataReducer = new ColumnDataReducer(size, nowInSec, hasComplex);
         }
