@@ -35,7 +35,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.CompressionInfo;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.LongLongPair;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 /**
@@ -55,7 +55,7 @@ public class FileMessageHeader
     /** SSTable format **/
     public final SSTableFormat.Type format;
     public final long estimatedKeys;
-    public final List<Pair<Long, Long>> sections;
+    public final List<LongLongPair> sections;
     /**
      * Compression info for SSTable to send. Can be null if SSTable is not compressed.
      * On sender, this field is always null to avoid holding large number of Chunks.
@@ -80,7 +80,7 @@ public class FileMessageHeader
                              Version version,
                              SSTableFormat.Type format,
                              long estimatedKeys,
-                             List<Pair<Long, Long>> sections,
+                             List<LongLongPair> sections,
                              CompressionInfo compressionInfo,
                              long repairedAt,
                              UUID pendingRepair,
@@ -113,7 +113,7 @@ public class FileMessageHeader
                              Version version,
                              SSTableFormat.Type format,
                              long estimatedKeys,
-                             List<Pair<Long, Long>> sections,
+                             List<LongLongPair> sections,
                              CompressionMetadata compressionMetadata,
                              long repairedAt,
                              UUID pendingRepair,
@@ -166,7 +166,7 @@ public class FileMessageHeader
         }
         else
         {
-            for (Pair<Long, Long> section : sections)
+            for (LongLongPair section : sections)
                 transferSize += section.right - section.left;
         }
         return transferSize;
@@ -227,7 +227,7 @@ public class FileMessageHeader
 
             out.writeLong(header.estimatedKeys);
             out.writeInt(header.sections.size());
-            for (Pair<Long, Long> section : header.sections)
+            for (LongLongPair section : header.sections)
             {
                 out.writeLong(section.left);
                 out.writeLong(section.right);
@@ -261,9 +261,9 @@ public class FileMessageHeader
 
             long estimatedKeys = in.readLong();
             int count = in.readInt();
-            List<Pair<Long, Long>> sections = new ArrayList<>(count);
+            List<LongLongPair> sections = new ArrayList<>(count);
             for (int k = 0; k < count; k++)
-                sections.add(Pair.create(in.readLong(), in.readLong()));
+                sections.add(LongLongPair.create(in.readLong(), in.readLong()));
             CompressionInfo compressionInfo = CompressionInfo.serializer.deserialize(in, version);
             long repairedAt = in.readLong();
             UUID pendingRepair = in.readBoolean() ? UUIDSerializer.serializer.deserialize(in, version) : null;
@@ -285,7 +285,7 @@ public class FileMessageHeader
             size += TypeSizes.sizeof(header.estimatedKeys);
 
             size += TypeSizes.sizeof(header.sections.size());
-            for (Pair<Long, Long> section : header.sections)
+            for (LongLongPair section : header.sections)
             {
                 size += TypeSizes.sizeof(section.left);
                 size += TypeSizes.sizeof(section.right);

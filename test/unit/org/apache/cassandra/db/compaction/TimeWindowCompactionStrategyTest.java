@@ -44,7 +44,7 @@ import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.LongLongPair;
 
 import static org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy.getWindowBoundsInMillis;
 import static org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy.newestBucket;
@@ -128,21 +128,21 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
     @Test
     public void testTimeWindows()
     {
-        Long tstamp1 = 1451001601000L; // 2015-12-25 @ 00:00:01, in milliseconds
-        Long tstamp2 = 1451088001000L; // 2015-12-26 @ 00:00:01, in milliseconds
-        Long lowHour = 1451001600000L; // 2015-12-25 @ 00:00:00, in milliseconds
+        long tstamp1 = 1451001601000L; // 2015-12-25 @ 00:00:01, in milliseconds
+        long tstamp2 = 1451088001000L; // 2015-12-26 @ 00:00:01, in milliseconds
+        long lowHour = 1451001600000L; // 2015-12-25 @ 00:00:00, in milliseconds
 
         // A 1 hour window should round down to the beginning of the hour
-        assertTrue(getWindowBoundsInMillis(TimeUnit.HOURS, 1, tstamp1).left.compareTo(lowHour) == 0);
+        assertEquals(getWindowBoundsInMillis(TimeUnit.HOURS, 1, tstamp1).left, lowHour);
 
         // A 1 minute window should round down to the beginning of the hour
-        assertTrue(getWindowBoundsInMillis(TimeUnit.MINUTES, 1, tstamp1).left.compareTo(lowHour) == 0);
+        assertEquals(getWindowBoundsInMillis(TimeUnit.MINUTES, 1, tstamp1).left, lowHour);
 
         // A 1 day window should round down to the beginning of the hour
-        assertTrue(getWindowBoundsInMillis(TimeUnit.DAYS, 1, tstamp1).left.compareTo(lowHour) == 0 );
+        assertEquals(getWindowBoundsInMillis(TimeUnit.DAYS, 1, tstamp1).left, lowHour);
 
         // The 2 day window of 2015-12-25 + 2015-12-26 should round down to the beginning of 2015-12-25
-        assertTrue(getWindowBoundsInMillis(TimeUnit.DAYS, 2, tstamp2).left.compareTo(lowHour) == 0);
+        assertEquals(getWindowBoundsInMillis(TimeUnit.DAYS, 2, tstamp2).left, lowHour);
 
 
         return;
@@ -189,7 +189,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         // We'll put 3 sstables into the newest bucket
         for (int i = 0 ; i < 3; i++)
         {
-            Pair<Long,Long> bounds = getWindowBoundsInMillis(TimeUnit.HOURS, 1, tstamp );
+            LongLongPair bounds = getWindowBoundsInMillis(TimeUnit.HOURS, 1, tstamp );
             buckets.put(bounds.left, sstrs.get(i));
         }
         List<SSTableReader> newBucket = newestBucket(buckets, 4, 32, new SizeTieredCompactionStrategyOptions(), getWindowBoundsInMillis(TimeUnit.HOURS, 1, System.currentTimeMillis()).left );
@@ -201,7 +201,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         // And 2 into the second bucket (1 hour back)
         for (int i = 3 ; i < 5; i++)
         {
-            Pair<Long,Long> bounds = getWindowBoundsInMillis(TimeUnit.HOURS, 1, tstamp2 );
+            LongLongPair bounds = getWindowBoundsInMillis(TimeUnit.HOURS, 1, tstamp2 );
             buckets.put(bounds.left, sstrs.get(i));
         }
 
@@ -227,7 +227,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         sstrs = new ArrayList<>(cfs.getLiveSSTables());
         for (int i = 0 ; i < 40; i++)
         {
-            Pair<Long,Long> bounds = getWindowBoundsInMillis(TimeUnit.HOURS, 1, sstrs.get(i).getMaxTimestamp());
+            LongLongPair bounds = getWindowBoundsInMillis(TimeUnit.HOURS, 1, sstrs.get(i).getMaxTimestamp());
             buckets.put(bounds.left, sstrs.get(i));
         }
 

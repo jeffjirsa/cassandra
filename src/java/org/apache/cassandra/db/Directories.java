@@ -45,6 +45,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.DirectorySizeCalculator;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.LongLongPair;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -784,19 +785,19 @@ public class Directories
      * @return  Return a map of all snapshots to space being used
      * The pair for a snapshot has size on disk and true size.
      */
-    public Map<String, Pair<Long, Long>> getSnapshotDetails()
+    public Map<String, LongLongPair> getSnapshotDetails()
     {
         List<File> snapshots = listSnapshots();
-        final Map<String, Pair<Long, Long>> snapshotSpaceMap = Maps.newHashMapWithExpectedSize(snapshots.size());
+        final Map<String, LongLongPair> snapshotSpaceMap = Maps.newHashMapWithExpectedSize(snapshots.size());
         for (File snapshot : snapshots)
         {
             final long sizeOnDisk = FileUtils.folderSize(snapshot);
             final long trueSize = getTrueAllocatedSizeIn(snapshot);
-            Pair<Long, Long> spaceUsed = snapshotSpaceMap.get(snapshot.getName());
+            LongLongPair spaceUsed = snapshotSpaceMap.get(snapshot.getName());
             if (spaceUsed == null)
-                spaceUsed =  Pair.create(sizeOnDisk,trueSize);
+                spaceUsed =  LongLongPair.create(sizeOnDisk, trueSize);
             else
-                spaceUsed = Pair.create(spaceUsed.left + sizeOnDisk, spaceUsed.right + trueSize);
+                spaceUsed = LongLongPair.create(spaceUsed.left + sizeOnDisk, spaceUsed.right + trueSize);
             snapshotSpaceMap.put(snapshot.getName(), spaceUsed);
         }
         return snapshotSpaceMap;

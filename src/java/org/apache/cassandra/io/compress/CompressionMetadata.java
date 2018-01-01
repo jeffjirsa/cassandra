@@ -54,6 +54,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemory;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.utils.LongLongPair;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Transactional;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -261,11 +262,11 @@ public class CompressionMetadata
      * @param sections Collection of sections in uncompressed file. Should not contain sections that overlap each other.
      * @return Total chunk size in bytes for given sections including checksum.
      */
-    public long getTotalSizeForSections(Collection<Pair<Long, Long>> sections)
+    public long getTotalSizeForSections(Collection<LongLongPair> sections)
     {
         long size = 0;
         long lastOffset = -1;
-        for (Pair<Long, Long> section : sections)
+        for (LongLongPair section : sections)
         {
             int startIndex = (int) (section.left / parameters.chunkLength());
             int endIndex = (int) (section.right / parameters.chunkLength());
@@ -291,7 +292,7 @@ public class CompressionMetadata
      * @param sections Collection of sections in uncompressed file
      * @return Array of chunks which corresponds to given sections of uncompressed file, sorted by chunk offset
      */
-    public Chunk[] getChunksForSections(Collection<Pair<Long, Long>> sections)
+    public Chunk[] getChunksForSections(Collection<LongLongPair> sections)
     {
         // use SortedSet to eliminate duplicates and sort by chunk offset
         SortedSet<Chunk> offsets = new TreeSet<Chunk>(new Comparator<Chunk>()
@@ -301,7 +302,7 @@ public class CompressionMetadata
                 return Longs.compare(o1.offset, o2.offset);
             }
         });
-        for (Pair<Long, Long> section : sections)
+        for (LongLongPair section : sections)
         {
             int startIndex = (int) (section.left / parameters.chunkLength());
             int endIndex = (int) (section.right / parameters.chunkLength());

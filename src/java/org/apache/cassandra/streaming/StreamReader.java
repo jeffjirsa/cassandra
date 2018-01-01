@@ -44,7 +44,7 @@ import org.apache.cassandra.streaming.messages.FileMessageHeader;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.LongLongPair;
 
 /**
  * StreamReader reads from stream and writes to SSTable.
@@ -54,7 +54,7 @@ public class StreamReader
     private static final Logger logger = LoggerFactory.getLogger(StreamReader.class);
     protected final TableId tableId;
     protected final long estimatedKeys;
-    protected final Collection<Pair<Long, Long>> sections;
+    protected final Collection<LongLongPair> sections;
     protected final StreamSession session;
     protected final Version inputVersion;
     protected final long repairedAt;
@@ -155,7 +155,7 @@ public class StreamReader
     protected long totalSize()
     {
         long size = 0;
-        for (Pair<Long, Long> section : sections)
+        for (LongLongPair section : sections)
             size += section.right - section.left;
         return size;
     }

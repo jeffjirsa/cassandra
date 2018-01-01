@@ -1132,7 +1132,7 @@ public final class SystemKeyspace
     /**
      * Writes the current partition count and size estimates into SIZE_ESTIMATES_CF
      */
-    public static void updateSizeEstimates(String keyspace, String table, Map<Range<Token>, Pair<Long, Long>> estimates)
+    public static void updateSizeEstimates(String keyspace, String table, Map<Range<Token>, LongLongPair> estimates)
     {
         long timestamp = FBUtilities.timestampMicros();
         PartitionUpdate.Builder update = new PartitionUpdate.Builder(SizeEstimates, UTF8Type.instance.decompose(keyspace), SizeEstimates.regularAndStaticColumns(), estimates.size());
@@ -1141,10 +1141,10 @@ public final class SystemKeyspace
         update.add(new RangeTombstone(Slice.make(SizeEstimates.comparator, table), new DeletionTime(timestamp - 1, nowInSec)));
 
         // add a CQL row for each primary token range.
-        for (Map.Entry<Range<Token>, Pair<Long, Long>> entry : estimates.entrySet())
+        for (Map.Entry<Range<Token>, LongLongPair> entry : estimates.entrySet())
         {
             Range<Token> range = entry.getKey();
-            Pair<Long, Long> values = entry.getValue();
+            LongLongPair values = entry.getValue();
             update.add(Rows.simpleBuilder(SizeEstimates, table, range.left.toString(), range.right.toString())
                            .timestamp(timestamp)
                            .add("partitions_count", values.left)

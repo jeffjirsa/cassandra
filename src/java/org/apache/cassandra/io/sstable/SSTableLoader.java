@@ -34,6 +34,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.*;
+import org.apache.cassandra.utils.LongLongPair;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 
@@ -129,7 +130,7 @@ public class SSTableLoader implements StreamEventHandler
                                                   InetAddress endpoint = entry.getKey();
                                                   Collection<Range<Token>> tokenRanges = entry.getValue();
 
-                                                  List<Pair<Long, Long>> sstableSections = sstable.getPositionsForRanges(tokenRanges);
+                                                  List<LongLongPair> sstableSections = sstable.getPositionsForRanges(tokenRanges);
                                                   long estimatedKeys = sstable.estimatedKeysForRanges(tokenRanges);
                                                   Ref<SSTableReader> ref = sstable.ref();
                                                   StreamSession.SSTableStreamingSections details = new StreamSession.SSTableStreamingSections(ref, sstableSections, estimatedKeys);

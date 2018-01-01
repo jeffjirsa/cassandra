@@ -34,7 +34,7 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.FileMessageHeader;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.LongLongPair;
 
 import static org.apache.cassandra.utils.Throwables.extractIOExceptionCause;
 
@@ -84,7 +84,7 @@ public class CompressedStreamReader extends StreamReader
             writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, format);
             String filename = writer.getFilename();
             int sectionIdx = 0;
-            for (Pair<Long, Long> section : sections)
+            for (LongLongPair section : sections)
             {
                 assert cis.getTotalCompressedBytesRead() <= totalSize;
                 long sectionLength = section.right - section.left;

@@ -35,7 +35,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
 import org.apache.cassandra.streaming.compress.ByteBufCompressionDataOutputStreamPlus;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.LongLongPair;
 
 /**
  * StreamWriter writes given section of the SSTable to given channel.
@@ -47,11 +47,11 @@ public class StreamWriter
     private static final Logger logger = LoggerFactory.getLogger(StreamWriter.class);
 
     protected final SSTableReader sstable;
-    protected final Collection<Pair<Long, Long>> sections;
+    protected final Collection<LongLongPair> sections;
     protected final StreamRateLimiter limiter;
     protected final StreamSession session;
 
-    public StreamWriter(SSTableReader sstable, Collection<Pair<Long, Long>> sections, StreamSession session)
+    public StreamWriter(SSTableReader sstable, Collection<LongLongPair> sections, StreamSession session)
     {
         this.session = session;
         this.sstable = sstable;
@@ -86,7 +86,7 @@ public class StreamWriter
             try (DataOutputStreamPlus compressedOutput = new ByteBufCompressionDataOutputStreamPlus(output, limiter))
             {
                 // stream each of the required sections of the file
-                for (Pair<Long, Long> section : sections)
+                for (LongLongPair section : sections)
                 {
                     long start = validator == null ? section.left : validator.chunkStart(section.left);
                     // if the transfer does not start on the valididator's chunk boundary, this is the number of bytes to offset by
@@ -121,7 +121,7 @@ public class StreamWriter
     protected long totalSize()
     {
         long size = 0;
-        for (Pair<Long, Long> section : sections)
+        for (LongLongPair section : sections)
             size += section.right - section.left;
         return size;
     }

@@ -25,6 +25,7 @@ import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.TypeSizes;
@@ -32,7 +33,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.LongLongPair;
 
 import static org.apache.cassandra.tracing.Tracing.isTracing;
 
@@ -185,7 +186,7 @@ public class MessageOut<T>
         }
     }
 
-    private Pair<Long, Long> calculateSerializedSize(int version)
+    private LongLongPair calculateSerializedSize(int version)
     {
         long size = CompactEndpointSerializationHelper.serializedSize(from);
 
@@ -202,7 +203,7 @@ public class MessageOut<T>
         assert payloadSize <= Integer.MAX_VALUE; // larger values are supported in sstables but not messages
         size += TypeSizes.sizeof((int) payloadSize);
         size += payloadSize;
-        return Pair.create(size, payloadSize);
+        return LongLongPair.create(size, payloadSize);
     }
 
     /**
@@ -224,17 +225,17 @@ public class MessageOut<T>
         if (serializedSize > 0 && serializedSizeVersion == version)
             return serializedSize;
 
-        Pair<Long, Long> sizes = calculateSerializedSize(version);
+        LongLongPair sizes = calculateSerializedSize(version);
         if (sizes.left > Integer.MAX_VALUE)
             throw new IllegalStateException("message size exceeds maximum allowed size: size = " + sizes.left);
 
         if (serializedSizeVersion == SERIALIZED_SIZE_VERSION_UNDEFINED)
         {
-            serializedSize = sizes.left.intValue();
-            payloadSerializedSize = sizes.right.intValue();
+            serializedSize = Ints.checkedCast(sizes.left);
+            payloadSerializedSize = Ints.checkedCast(sizes.right);
             serializedSizeVersion = version;
         }
 
-        return sizes.left.intValue();
+        return Ints.checkedCast(sizes.left);
     }
 }

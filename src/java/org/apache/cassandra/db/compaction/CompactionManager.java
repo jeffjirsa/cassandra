@@ -1389,7 +1389,7 @@ public class CompactionManager implements CompactionManagerMBean
             long estimatedTotalBytes = 0;
             for (SSTableReader sstable : sstables)
             {
-                for (Pair<Long, Long> positionsForRanges : sstable.getPositionsForRanges(validator.desc.ranges))
+                for (LongLongPair positionsForRanges : sstable.getPositionsForRanges(validator.desc.ranges))
                     estimatedTotalBytes += positionsForRanges.right - positionsForRanges.left;
             }
             cfs.metric.bytesValidated.update(estimatedTotalBytes);

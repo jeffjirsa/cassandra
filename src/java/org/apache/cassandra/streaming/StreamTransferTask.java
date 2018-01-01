@@ -33,6 +33,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.messages.OutgoingFileMessage;
+import org.apache.cassandra.utils.LongLongPair;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
 
@@ -58,7 +59,7 @@ public class StreamTransferTask extends StreamTask
         super(session, tableId);
     }
 
-    public synchronized void addTransferFile(Ref<SSTableReader> ref, long estimatedKeys, List<Pair<Long, Long>> sections)
+    public synchronized void addTransferFile(Ref<SSTableReader> ref, long estimatedKeys, List<LongLongPair> sections)
     {
         assert ref.get() != null && tableId.equals(ref.get().metadata().id);
         OutgoingFileMessage message = new OutgoingFileMessage(ref, session, sequenceNumber.getAndIncrement(), estimatedKeys, sections, session.keepSSTableLevel());

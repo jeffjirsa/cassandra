@@ -37,7 +37,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.streaming.compress.CompressedInputStream;
 import org.apache.cassandra.streaming.compress.CompressionInfo;
 import org.apache.cassandra.utils.ChecksumType;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.LongLongPair;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -129,11 +129,11 @@ public class CompressedInputStreamTest
         }
 
         CompressionMetadata comp = CompressionMetadata.create(tmp.getAbsolutePath());
-        List<Pair<Long, Long>> sections = new ArrayList<>();
+        List<LongLongPair> sections = new ArrayList<>();
         for (long l : valuesToCheck)
         {
             long position = index.get(l);
-            sections.add(Pair.create(position, position + 8));
+            sections.add(LongLongPair.create(position, position + 8));
         }
         CompressionMetadata.Chunk[] chunks = comp.getChunksForSections(sections);
         long totalSize = comp.getTotalSizeForSections(sections);
@@ -186,7 +186,7 @@ public class CompressedInputStreamTest
         }
     }
 
-    private static void testException(List<Pair<Long, Long>> sections, CompressionInfo info) throws IOException
+    private static void testException(List<LongLongPair> sections, CompressionInfo info) throws IOException
     {
         CompressedInputStream input = new CompressedInputStream(new DataInputStreamPlus(new ByteArrayInputStream(new byte[0])), info, ChecksumType.CRC32, () -> 1.0);
 

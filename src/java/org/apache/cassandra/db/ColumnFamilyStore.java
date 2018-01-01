@@ -1441,8 +1441,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspace.getName());
         for (SSTableReader sstable : sstables)
         {
-            List<Pair<Long, Long>> positions = sstable.getPositionsForRanges(ranges);
-            for (Pair<Long, Long> position : positions)
+            List<LongLongPair> positions = sstable.getPositionsForRanges(ranges);
+            for (LongLongPair position : positions)
                 expectedFileSize += position.right - position.left;
         }
 
@@ -1955,7 +1955,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return  Return a map of all snapshots to space being used
      * The pair for a snapshot has true size and size on disk.
      */
-    public Map<String, Pair<Long,Long>> getSnapshotDetails()
+    public Map<String, LongLongPair> getSnapshotDetails()
     {
         return getDirectories().getSnapshotDetails();
     }

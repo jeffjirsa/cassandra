@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
 import net.jpountz.lz4.LZ4Exception;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.ObjectIntPair;
 
 public class LZ4Compressor implements ICompressor
 {
@@ -50,14 +50,14 @@ public class LZ4Compressor implements ICompressor
 
     private static final int INTEGER_BYTES = 4;
 
-    private static final ConcurrentHashMap<Pair<String, Integer>, LZ4Compressor> instances = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<ObjectIntPair<String>, LZ4Compressor> instances = new ConcurrentHashMap<>();
 
     public static LZ4Compressor create(Map<String, String> args) throws ConfigurationException
     {
         String compressorType = validateCompressorType(args.get(LZ4_COMPRESSOR_TYPE));
         Integer compressionLevel = validateCompressionLevel(args.get(LZ4_HIGH_COMPRESSION_LEVEL));
 
-        Pair<String, Integer> compressorTypeAndLevel = Pair.create(compressorType, compressionLevel);
+        ObjectIntPair<String> compressorTypeAndLevel = ObjectIntPair.create(compressorType, compressionLevel);
         LZ4Compressor instance = instances.get(compressorTypeAndLevel);
         if (instance == null)
         {

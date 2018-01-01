@@ -37,7 +37,7 @@ import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamWriter;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.LongLongPair;
 
 /**
  * StreamWriter for compressed SSTable.
@@ -50,7 +50,7 @@ public class CompressedStreamWriter extends StreamWriter
 
     private final CompressionInfo compressionInfo;
 
-    public CompressedStreamWriter(SSTableReader sstable, Collection<Pair<Long, Long>> sections, CompressionInfo compressionInfo, StreamSession session)
+    public CompressedStreamWriter(SSTableReader sstable, Collection<LongLongPair> sections, CompressionInfo compressionInfo, StreamSession session)
     {
         super(sstable, sections, session);
         this.compressionInfo = compressionInfo;
@@ -68,12 +68,12 @@ public class CompressedStreamWriter extends StreamWriter
         {
             long progress = 0L;
             // calculate chunks to transfer. we want to send continuous chunks altogether.
-            List<Pair<Long, Long>> sections = getTransferSections(compressionInfo.chunks);
+            List<LongLongPair> sections = getTransferSections(compressionInfo.chunks);
 
             int sectionIdx = 0;
 
             // stream each of the required sections of the file
-            for (final Pair<Long, Long> section : sections)
+            for (final LongLongPair section : sections)
             {
                 // length of the section to stream
                 long length = section.right - section.left;
@@ -123,10 +123,10 @@ public class CompressedStreamWriter extends StreamWriter
     }
 
     // chunks are assumed to be sorted by offset
-    private List<Pair<Long, Long>> getTransferSections(CompressionMetadata.Chunk[] chunks)
+    private List<LongLongPair> getTransferSections(CompressionMetadata.Chunk[] chunks)
     {
-        List<Pair<Long, Long>> transferSections = new ArrayList<>();
-        Pair<Long, Long> lastSection = null;
+        List<LongLongPair> transferSections = new ArrayList<>();
+        LongLongPair lastSection = null;
         for (CompressionMetadata.Chunk chunk : chunks)
         {
             if (lastSection != null)
@@ -134,17 +134,17 @@ public class CompressedStreamWriter extends StreamWriter
                 if (chunk.offset == lastSection.right)
                 {
                     // extend previous section to end of this chunk
-                    lastSection = Pair.create(lastSection.left, chunk.offset + chunk.length + 4); // 4 bytes for CRC
+                    lastSection = LongLongPair.create(lastSection.left, chunk.offset + chunk.length + 4); // 4 bytes for CRC
                 }
                 else
                 {
                     transferSections.add(lastSection);
-                    lastSection = Pair.create(chunk.offset, chunk.offset + chunk.length + 4);
+                    lastSection = LongLongPair.create(chunk.offset, chunk.offset + chunk.length + 4);
                 }
             }
             else
             {
-                lastSection = Pair.create(chunk.offset, chunk.offset + chunk.length + 4);
+                lastSection = LongLongPair.create(chunk.offset, chunk.offset + chunk.length + 4);
             }
         }
         if (lastSection != null)

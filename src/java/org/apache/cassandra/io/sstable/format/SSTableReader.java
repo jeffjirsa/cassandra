@@ -1316,8 +1316,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public long estimatedKeysForRanges(Collection<Range<Token>> ranges)
     {
         long sampleKeyCount = 0;
-        List<Pair<Integer, Integer>> sampleIndexes = getSampleIndexesForRanges(indexSummary, ranges);
-        for (Pair<Integer, Integer> sampleIndexRange : sampleIndexes)
+        List<IntIntPair> sampleIndexes = getSampleIndexesForRanges(indexSummary, ranges);
+        for (IntIntPair sampleIndexRange : sampleIndexes)
             sampleKeyCount += (sampleIndexRange.right - sampleIndexRange.left + 1);
 
         // adjust for the current sampling level: (BSL / SL) * index_interval_at_full_sampling
@@ -1350,10 +1350,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return indexSummary.getKey(index);
     }
 
-    private static List<Pair<Integer,Integer>> getSampleIndexesForRanges(IndexSummary summary, Collection<Range<Token>> ranges)
+    private static List<IntIntPair> getSampleIndexesForRanges(IndexSummary summary, Collection<Range<Token>> ranges)
     {
         // use the index to determine a minimal section for each range
-        List<Pair<Integer,Integer>> positions = new ArrayList<>();
+        List<IntIntPair> positions = new ArrayList<>();
 
         for (Range<Token> range : Range.normalize(ranges))
         {
@@ -1387,14 +1387,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             if (left > right)
                 // empty range
                 continue;
-            positions.add(Pair.create(left, right));
+            positions.add(IntIntPair.create(left, right));
         }
         return positions;
     }
 
     public Iterable<DecoratedKey> getKeySamples(final Range<Token> range)
     {
-        final List<Pair<Integer, Integer>> indexRanges = getSampleIndexesForRanges(indexSummary, Collections.singletonList(range));
+        final List<IntIntPair> indexRanges = getSampleIndexesForRanges(indexSummary, Collections.singletonList(range));
 
         if (indexRanges.isEmpty())
             return Collections.emptyList();
@@ -1405,8 +1405,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             {
                 return new Iterator<DecoratedKey>()
                 {
-                    private Iterator<Pair<Integer, Integer>> rangeIter = indexRanges.iterator();
-                    private Pair<Integer, Integer> current;
+                    private Iterator<IntIntPair> rangeIter = indexRanges.iterator();
+                    private IntIntPair current;
                     private int idx;
 
                     public boolean hasNext()
@@ -1444,10 +1444,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * Determine the minimal set of sections that can be extracted from this SSTable to cover the given ranges.
      * @return A sorted list of (offset,end) pairs that cover the given ranges in the datafile for this SSTable.
      */
-    public List<Pair<Long,Long>> getPositionsForRanges(Collection<Range<Token>> ranges)
+    public List<LongLongPair> getPositionsForRanges(Collection<Range<Token>> ranges)
     {
         // use the index to determine a minimal section for each range
-        List<Pair<Long,Long>> positions = new ArrayList<>();
+        List<LongLongPair> positions = new ArrayList<>();
         for (Range<Token> range : Range.normalize(ranges))
         {
             assert !range.isWrapAround() || range.right.isMinimum();
@@ -1469,7 +1469,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 continue;
 
             assert left < right : String.format("Range=%s openReason=%s first=%s last=%s left=%d right=%d", range, openReason, first, last, left, right);
-            positions.add(Pair.create(left, right));
+            positions.add(LongLongPair.create(left, right));
         }
         return positions;
     }

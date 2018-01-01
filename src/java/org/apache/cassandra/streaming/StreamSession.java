@@ -58,6 +58,7 @@ import org.apache.cassandra.streaming.async.NettyStreamingMessageSender;
 import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.LongLongPair;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -459,10 +460,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public static class SSTableStreamingSections
     {
         public final Ref<SSTableReader> ref;
-        public final List<Pair<Long, Long>> sections;
+        public final List<LongLongPair> sections;
         public final long estimatedKeys;
 
-        public SSTableStreamingSections(Ref<SSTableReader> ref, List<Pair<Long, Long>> sections, long estimatedKeys)
+        public SSTableStreamingSections(Ref<SSTableReader> ref, List<LongLongPair> sections, long estimatedKeys)
         {
             this.ref = ref;
             this.sections = sections;

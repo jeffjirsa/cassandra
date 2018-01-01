@@ -40,7 +40,7 @@ import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.EstimatedHistogram;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.LongLongPair;
 import org.apache.cassandra.utils.TopKSampler;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -205,7 +205,7 @@ public class TableMetrics
     public final static LatencyMetrics globalWriteLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Write");
     public final static LatencyMetrics globalRangeLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Range");
 
-    private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
+    private static LongLongPair totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
         long total = 0;
         long filtered = 0;
@@ -233,7 +233,7 @@ public class TableMetrics
                 }
             }
         }
-        return Pair.create(filtered, total);
+        return LongLongPair.create(filtered, total);
     }
 
     public static final Gauge<Double> globalPercentRepaired = Metrics.register(globalFactory.createMetricName("PercentRepaired"),
@@ -241,7 +241,7 @@ public class TableMetrics
     {
         public Double getValue()
         {
-            Pair<Long, Long> result = totalNonSystemTablesSize(SSTableReader::isRepaired);
+            LongLongPair result = totalNonSystemTablesSize(SSTableReader::isRepaired);
             double repaired = result.left;
             double total = result.right;
             return total > 0 ? (repaired / total) * 100 : 100.0;

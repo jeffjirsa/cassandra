@@ -34,7 +34,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.LongLongPair;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
@@ -89,7 +89,7 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
     private void recordSizeEstimates(ColumnFamilyStore table, Collection<Range<Token>> localRanges)
     {
         // for each local primary range, estimate (crudely) mean partition size and partitions count.
-        Map<Range<Token>, Pair<Long, Long>> estimates = new HashMap<>(localRanges.size());
+        Map<Range<Token>, LongLongPair> estimates = new HashMap<>(localRanges.size());
         for (Range<Token> localRange : localRanges)
         {
             for (Range<Token> unwrappedRange : localRange.unwrap())
@@ -119,7 +119,7 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
                         refs.release();
                 }
 
-                estimates.put(unwrappedRange, Pair.create(partitionsCount, meanPartitionSize));
+                estimates.put(unwrappedRange, LongLongPair.create(partitionsCount, meanPartitionSize));
             }
         }
 

@@ -40,6 +40,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.utils.LongLongPair;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Iterables.filter;
@@ -199,7 +200,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
      * Find the lowest and highest timestamps in a given timestamp/unit pair
      * Returns milliseconds, caller should adjust accordingly
      */
-    public static Pair<Long,Long> getWindowBoundsInMillis(TimeUnit windowTimeUnit, int windowTimeSize, long timestampInMillis)
+    public static LongLongPair getWindowBoundsInMillis(TimeUnit windowTimeUnit, int windowTimeSize, long timestampInMillis)
     {
         long lowerTimestamp;
         long upperTimestamp;
@@ -222,7 +223,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
                 break;
         }
 
-        return Pair.create(TimeUnit.MILLISECONDS.convert(lowerTimestamp, TimeUnit.SECONDS),
+        return LongLongPair.create(TimeUnit.MILLISECONDS.convert(lowerTimestamp, TimeUnit.SECONDS),
                            TimeUnit.MILLISECONDS.convert(upperTimestamp, TimeUnit.SECONDS));
 
     }
@@ -249,7 +250,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         {
             assert TimeWindowCompactionStrategyOptions.validTimestampTimeUnits.contains(timestampResolution);
             long tStamp = TimeUnit.MILLISECONDS.convert(f.getMaxTimestamp(), timestampResolution);
-            Pair<Long,Long> bounds = getWindowBoundsInMillis(sstableWindowUnit, sstableWindowSize, tStamp);
+            LongLongPair bounds = getWindowBoundsInMillis(sstableWindowUnit, sstableWindowSize, tStamp);
             buckets.put(bounds.left, f);
             if (bounds.left > maxTimestamp)
                 maxTimestamp = bounds.left;

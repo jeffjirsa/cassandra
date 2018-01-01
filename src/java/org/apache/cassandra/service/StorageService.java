@@ -3244,7 +3244,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             for (ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
             {
-                for (Map.Entry<String, Pair<Long,Long>> snapshotDetail : cfStore.getSnapshotDetails().entrySet())
+                for (Map.Entry<String, LongLongPair> snapshotDetail : cfStore.getSnapshotDetails().entrySet())
                 {
                     TabularDataSupport data = (TabularDataSupport)snapshotMap.get(snapshotDetail.getKey());
                     if (data == null)
