@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.transport.messages;
 
-import org.apache.cassandra.transport.CBUtil;
+import org.apache.cassandra.utils.ByteBufUtil;
 import org.apache.cassandra.transport.Message;
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -33,7 +33,7 @@ public class AuthChallenge extends Message.Response
     {
         public AuthChallenge decode(ByteBuf body, ProtocolVersion version)
         {
-            ByteBuffer b = CBUtil.readValue(body);
+            ByteBuffer b = ByteBufUtil.readValue(body);
             byte[] token = new byte[b.remaining()];
             b.get(token);
             return new AuthChallenge(token);
@@ -41,12 +41,12 @@ public class AuthChallenge extends Message.Response
 
         public void encode(AuthChallenge challenge, ByteBuf dest, ProtocolVersion version)
         {
-            CBUtil.writeValue(challenge.token, dest);
+            ByteBufUtil.writeValue(challenge.token, dest);
         }
 
         public int encodedSize(AuthChallenge challenge, ProtocolVersion version)
         {
-            return CBUtil.sizeOfValue(challenge.token);
+            return ByteBufUtil.sizeOfValue(challenge.token);
         }
     };
 

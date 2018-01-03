@@ -36,7 +36,7 @@ import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.CBCodec;
-import org.apache.cassandra.transport.CBUtil;
+import org.apache.cassandra.utils.ByteBufUtil;
 import org.apache.cassandra.transport.DataType;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -157,7 +157,7 @@ public class ResultSet
             // rows
             int totalValues = rowCount * m.columnCount;
             for (int i = 0; i < totalValues; i++)
-                rs.addColumnValue(CBUtil.readValue(body));
+                rs.addColumnValue(ByteBufUtil.readValue(body));
 
             return rs;
         }
@@ -171,7 +171,7 @@ public class ResultSet
                 // Note that we do only want to serialize only the first columnCount values, even if the row
                 // as more: see comment on ResultMetadata.names field.
                 for (int i = 0; i < rs.metadata.columnCount; i++)
-                    CBUtil.writeValue(row.get(i), dest);
+                    ByteBufUtil.writeValue(row.get(i), dest);
             }
         }
 
@@ -181,7 +181,7 @@ public class ResultSet
             for (List<ByteBuffer> row : rs.rows)
             {
                 for (int i = 0; i < rs.metadata.columnCount; i++)
-                    size += CBUtil.sizeOfValue(row.get(i));
+                    size += ByteBufUtil.sizeOfValue(row.get(i));
             }
             return size;
         }
@@ -378,12 +378,12 @@ public class ResultSet
                     assert version.isGreaterOrEqualTo(ProtocolVersion.V5) : "MetadataChanged flag is not supported before native protocol v5";
                     assert !flags.contains(Flag.NO_METADATA) : "MetadataChanged and NoMetadata are mutually exclusive flags";
 
-                    resultMetadataId = MD5Digest.wrap(CBUtil.readBytes(body));
+                    resultMetadataId = MD5Digest.wrap(ByteBufUtil.readBytes(body));
                 }
 
                 PagingState state = null;
                 if (flags.contains(Flag.HAS_MORE_PAGES))
-                    state = PagingState.deserialize(CBUtil.readValueNoCopy(body), version);
+                    state = PagingState.deserialize(ByteBufUtil.readValueNoCopy(body), version);
 
                 if (flags.contains(Flag.NO_METADATA))
                     return new ResultMetadata(null, flags, null, columnCount, state);
@@ -394,17 +394,17 @@ public class ResultSet
                 String globalCfName = null;
                 if (globalTablesSpec)
                 {
-                    globalKsName = CBUtil.readString(body);
-                    globalCfName = CBUtil.readString(body);
+                    globalKsName = ByteBufUtil.readString(body);
+                    globalCfName = ByteBufUtil.readString(body);
                 }
 
                 // metadata (names/types)
                 List<ColumnSpecification> names = new ArrayList<ColumnSpecification>(columnCount);
                 for (int i = 0; i < columnCount; i++)
                 {
-                    String ksName = globalTablesSpec ? globalKsName : CBUtil.readString(body);
-                    String cfName = globalTablesSpec ? globalCfName : CBUtil.readString(body);
-                    ColumnIdentifier colName = new ColumnIdentifier(CBUtil.readString(body), true);
+                    String ksName = globalTablesSpec ? globalKsName : ByteBufUtil.readString(body);
+                    String cfName = globalTablesSpec ? globalCfName : ByteBufUtil.readString(body);
+                    ColumnIdentifier colName = new ColumnIdentifier(ByteBufUtil.readString(body), true);
                     AbstractType type = DataType.toType(DataType.codec.decodeOne(body, version));
                     names.add(new ColumnSpecification(ksName, cfName, colName, type));
                 }
@@ -424,20 +424,20 @@ public class ResultSet
                 dest.writeInt(m.columnCount);
 
                 if (hasMorePages)
-                    CBUtil.writeValue(m.pagingState.serialize(version), dest);
+                    ByteBufUtil.writeValue(m.pagingState.serialize(version), dest);
 
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V5)  && metadataChanged)
                 {
                     assert !noMetadata : "MetadataChanged and NoMetadata are mutually exclusive flags";
-                    CBUtil.writeBytes(m.getResultMetadataId().bytes, dest);
+                    ByteBufUtil.writeBytes(m.getResultMetadataId().bytes, dest);
                 }
 
                 if (!noMetadata)
                 {
                     if (globalTablesSpec)
                     {
-                        CBUtil.writeString(m.names.get(0).ksName, dest);
-                        CBUtil.writeString(m.names.get(0).cfName, dest);
+                        ByteBufUtil.writeString(m.names.get(0).ksName, dest);
+                        ByteBufUtil.writeString(m.names.get(0).cfName, dest);
                     }
 
                     for (int i = 0; i < m.columnCount; i++)
@@ -445,10 +445,10 @@ public class ResultSet
                         ColumnSpecification name = m.names.get(i);
                         if (!globalTablesSpec)
                         {
-                            CBUtil.writeString(name.ksName, dest);
-                            CBUtil.writeString(name.cfName, dest);
+                            ByteBufUtil.writeString(name.ksName, dest);
+                            ByteBufUtil.writeString(name.cfName, dest);
                         }
-                        CBUtil.writeString(name.name.toString(), dest);
+                        ByteBufUtil.writeString(name.name.toString(), dest);
                         DataType.codec.writeOne(DataType.fromType(name.type, version), dest, version);
                     }
                 }
@@ -463,17 +463,17 @@ public class ResultSet
 
                 int size = 8;
                 if (hasMorePages)
-                    size += CBUtil.sizeOfValue(m.pagingState.serializedSize(version));
+                    size += ByteBufUtil.sizeOfValue(m.pagingState.serializedSize(version));
 
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V5) && metadataChanged)
-                    size += CBUtil.sizeOfBytes(m.getResultMetadataId().bytes);
+                    size += ByteBufUtil.sizeOfBytes(m.getResultMetadataId().bytes);
 
                 if (!noMetadata)
                 {
                     if (globalTablesSpec)
                     {
-                        size += CBUtil.sizeOfString(m.names.get(0).ksName);
-                        size += CBUtil.sizeOfString(m.names.get(0).cfName);
+                        size += ByteBufUtil.sizeOfString(m.names.get(0).ksName);
+                        size += ByteBufUtil.sizeOfString(m.names.get(0).cfName);
                     }
 
                     for (int i = 0; i < m.columnCount; i++)
@@ -481,10 +481,10 @@ public class ResultSet
                         ColumnSpecification name = m.names.get(i);
                         if (!globalTablesSpec)
                         {
-                            size += CBUtil.sizeOfString(name.ksName);
-                            size += CBUtil.sizeOfString(name.cfName);
+                            size += ByteBufUtil.sizeOfString(name.ksName);
+                            size += ByteBufUtil.sizeOfString(name.cfName);
                         }
-                        size += CBUtil.sizeOfString(name.name.toString());
+                        size += ByteBufUtil.sizeOfString(name.name.toString());
                         size += DataType.codec.oneSerializedSize(DataType.fromType(name.type, version), version);
                     }
                 }
@@ -602,17 +602,17 @@ public class ResultSet
                 String globalCfName = null;
                 if (globalTablesSpec)
                 {
-                    globalKsName = CBUtil.readString(body);
-                    globalCfName = CBUtil.readString(body);
+                    globalKsName = ByteBufUtil.readString(body);
+                    globalCfName = ByteBufUtil.readString(body);
                 }
 
                 // metadata (names/types)
                 List<ColumnSpecification> names = new ArrayList<>(columnCount);
                 for (int i = 0; i < columnCount; i++)
                 {
-                    String ksName = globalTablesSpec ? globalKsName : CBUtil.readString(body);
-                    String cfName = globalTablesSpec ? globalCfName : CBUtil.readString(body);
-                    ColumnIdentifier colName = new ColumnIdentifier(CBUtil.readString(body), true);
+                    String ksName = globalTablesSpec ? globalKsName : ByteBufUtil.readString(body);
+                    String cfName = globalTablesSpec ? globalCfName : ByteBufUtil.readString(body);
+                    ColumnIdentifier colName = new ColumnIdentifier(ByteBufUtil.readString(body), true);
                     AbstractType type = DataType.toType(DataType.codec.decodeOne(body, version));
                     names.add(new ColumnSpecification(ksName, cfName, colName, type));
                 }
@@ -642,18 +642,18 @@ public class ResultSet
 
                 if (globalTablesSpec)
                 {
-                    CBUtil.writeString(m.names.get(0).ksName, dest);
-                    CBUtil.writeString(m.names.get(0).cfName, dest);
+                    ByteBufUtil.writeString(m.names.get(0).ksName, dest);
+                    ByteBufUtil.writeString(m.names.get(0).cfName, dest);
                 }
 
                 for (ColumnSpecification name : m.names)
                 {
                     if (!globalTablesSpec)
                     {
-                        CBUtil.writeString(name.ksName, dest);
-                        CBUtil.writeString(name.cfName, dest);
+                        ByteBufUtil.writeString(name.ksName, dest);
+                        ByteBufUtil.writeString(name.cfName, dest);
                     }
-                    CBUtil.writeString(name.name.toString(), dest);
+                    ByteBufUtil.writeString(name.name.toString(), dest);
                     DataType.codec.writeOne(DataType.fromType(name.type, version), dest, version);
                 }
             }
@@ -664,8 +664,8 @@ public class ResultSet
                 int size = 8;
                 if (globalTablesSpec)
                 {
-                    size += CBUtil.sizeOfString(m.names.get(0).ksName);
-                    size += CBUtil.sizeOfString(m.names.get(0).cfName);
+                    size += ByteBufUtil.sizeOfString(m.names.get(0).ksName);
+                    size += ByteBufUtil.sizeOfString(m.names.get(0).cfName);
                 }
 
                 if (m.partitionKeyBindIndexes != null && version.isGreaterOrEqualTo(ProtocolVersion.V4))
@@ -675,10 +675,10 @@ public class ResultSet
                 {
                     if (!globalTablesSpec)
                     {
-                        size += CBUtil.sizeOfString(name.ksName);
-                        size += CBUtil.sizeOfString(name.cfName);
+                        size += ByteBufUtil.sizeOfString(name.ksName);
+                        size += ByteBufUtil.sizeOfString(name.cfName);
                     }
-                    size += CBUtil.sizeOfString(name.name.toString());
+                    size += ByteBufUtil.sizeOfString(name.name.toString());
                     size += DataType.codec.oneSerializedSize(DataType.fromType(name.type, version), version);
                 }
                 return size;

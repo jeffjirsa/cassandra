@@ -20,6 +20,7 @@ package org.apache.cassandra.transport;
 import java.io.IOException;
 
 import io.netty.buffer.ByteBuf;
+import org.apache.cassandra.utils.ByteBufUtil;
 import org.xerial.snappy.Snappy;
 import org.xerial.snappy.SnappyError;
 
@@ -67,8 +68,8 @@ public interface FrameCompressor
 
         public Frame compress(Frame frame) throws IOException
         {
-            byte[] input = CBUtil.readRawBytes(frame.body);
-            ByteBuf output = CBUtil.allocator.heapBuffer(Snappy.maxCompressedLength(input.length));
+            byte[] input = ByteBufUtil.readRawBytes(frame.body);
+            ByteBuf output = ByteBufUtil.allocator.heapBuffer(Snappy.maxCompressedLength(input.length));
 
             try
             {
@@ -91,12 +92,12 @@ public interface FrameCompressor
 
         public Frame decompress(Frame frame) throws IOException
         {
-            byte[] input = CBUtil.readRawBytes(frame.body);
+            byte[] input = ByteBufUtil.readRawBytes(frame.body);
 
             if (!Snappy.isValidCompressedBuffer(input, 0, input.length))
                 throw new ProtocolException("Provided frame does not appear to be Snappy compressed");
 
-            ByteBuf output = CBUtil.allocator.heapBuffer(Snappy.uncompressedLength(input));
+            ByteBuf output = ByteBufUtil.allocator.heapBuffer(Snappy.uncompressedLength(input));
 
             try
             {
@@ -143,10 +144,10 @@ public interface FrameCompressor
 
         public Frame compress(Frame frame) throws IOException
         {
-            byte[] input = CBUtil.readRawBytes(frame.body);
+            byte[] input = ByteBufUtil.readRawBytes(frame.body);
 
             int maxCompressedLength = compressor.maxCompressedLength(input.length);
-            ByteBuf outputBuf = CBUtil.allocator.heapBuffer(INTEGER_BYTES + maxCompressedLength);
+            ByteBuf outputBuf = ByteBufUtil.allocator.heapBuffer(INTEGER_BYTES + maxCompressedLength);
 
             byte[] output = outputBuf.array();
             int outputOffset = outputBuf.arrayOffset();
@@ -177,14 +178,14 @@ public interface FrameCompressor
 
         public Frame decompress(Frame frame) throws IOException
         {
-            byte[] input = CBUtil.readRawBytes(frame.body);
+            byte[] input = ByteBufUtil.readRawBytes(frame.body);
 
             int uncompressedLength = ((input[0] & 0xFF) << 24)
                                    | ((input[1] & 0xFF) << 16)
                                    | ((input[2] & 0xFF) <<  8)
                                    | ((input[3] & 0xFF));
 
-            ByteBuf output = CBUtil.allocator.heapBuffer(uncompressedLength);
+            ByteBuf output = ByteBufUtil.allocator.heapBuffer(uncompressedLength);
 
             try
             {

@@ -24,6 +24,7 @@ import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.*;
+import org.apache.cassandra.utils.ByteBufUtil;
 
 public class RegisterMessage extends Message.Request
 {
@@ -34,7 +35,7 @@ public class RegisterMessage extends Message.Request
             int length = body.readUnsignedShort();
             List<Event.Type> eventTypes = new ArrayList<>(length);
             for (int i = 0; i < length; ++i)
-                eventTypes.add(CBUtil.readEnumValue(Event.Type.class, body));
+                eventTypes.add(ByteBufUtil.readEnumValue(Event.Type.class, body));
             return new RegisterMessage(eventTypes);
         }
 
@@ -42,14 +43,14 @@ public class RegisterMessage extends Message.Request
         {
             dest.writeShort(msg.eventTypes.size());
             for (Event.Type type : msg.eventTypes)
-                CBUtil.writeEnumValue(type, dest);
+                ByteBufUtil.writeEnumValue(type, dest);
         }
 
         public int encodedSize(RegisterMessage msg, ProtocolVersion version)
         {
             int size = 2;
             for (Event.Type type : msg.eventTypes)
-                size += CBUtil.sizeOfEnumValue(type);
+                size += ByteBufUtil.sizeOfEnumValue(type);
             return size;
         }
     };

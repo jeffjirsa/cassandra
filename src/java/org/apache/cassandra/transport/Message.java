@@ -45,6 +45,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.utils.ByteBufUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
@@ -269,9 +270,9 @@ public abstract class Message
             boolean isCustomPayload = frame.header.flags.contains(Frame.Header.Flag.CUSTOM_PAYLOAD);
             boolean hasWarning = frame.header.flags.contains(Frame.Header.Flag.WARNING);
 
-            UUID tracingId = isRequest || !isTracing ? null : CBUtil.readUUID(frame.body);
-            List<String> warnings = isRequest || !hasWarning ? null : CBUtil.readStringList(frame.body);
-            Map<String, ByteBuffer> customPayload = !isCustomPayload ? null : CBUtil.readBytesMap(frame.body);
+            UUID tracingId = isRequest || !isTracing ? null : ByteBufUtil.readUUID(frame.body);
+            List<String> warnings = isRequest || !hasWarning ? null : ByteBufUtil.readStringList(frame.body);
+            Map<String, ByteBuffer> customPayload = !isCustomPayload ? null : ByteBufUtil.readBytesMap(frame.body);
 
             try
             {
@@ -332,34 +333,34 @@ public abstract class Message
                     UUID tracingId = ((Response)message).getTracingId();
                     Map<String, ByteBuffer> customPayload = message.getCustomPayload();
                     if (tracingId != null)
-                        messageSize += CBUtil.sizeOfUUID(tracingId);
+                        messageSize += ByteBufUtil.sizeOfUUID(tracingId);
                     List<String> warnings = ((Response)message).getWarnings();
                     if (warnings != null)
                     {
                         if (version.isSmallerThan(ProtocolVersion.V4))
                             throw new ProtocolException("Must not send frame with WARNING flag for native protocol version < 4");
-                        messageSize += CBUtil.sizeOfStringList(warnings);
+                        messageSize += ByteBufUtil.sizeOfStringList(warnings);
                     }
                     if (customPayload != null)
                     {
                         if (version.isSmallerThan(ProtocolVersion.V4))
                             throw new ProtocolException("Must not send frame with CUSTOM_PAYLOAD flag for native protocol version < 4");
-                        messageSize += CBUtil.sizeOfBytesMap(customPayload);
+                        messageSize += ByteBufUtil.sizeOfBytesMap(customPayload);
                     }
-                    body = CBUtil.allocator.buffer(messageSize);
+                    body = ByteBufUtil.allocator.buffer(messageSize);
                     if (tracingId != null)
                     {
-                        CBUtil.writeUUID(tracingId, body);
+                        ByteBufUtil.writeUUID(tracingId, body);
                         flags.add(Frame.Header.Flag.TRACING);
                     }
                     if (warnings != null)
                     {
-                        CBUtil.writeStringList(warnings, body);
+                        ByteBufUtil.writeStringList(warnings, body);
                         flags.add(Frame.Header.Flag.WARNING);
                     }
                     if (customPayload != null)
                     {
-                        CBUtil.writeBytesMap(customPayload, body);
+                        ByteBufUtil.writeBytesMap(customPayload, body);
                         flags.add(Frame.Header.Flag.CUSTOM_PAYLOAD);
                     }
                 }
@@ -370,11 +371,11 @@ public abstract class Message
                         flags.add(Frame.Header.Flag.TRACING);
                     Map<String, ByteBuffer> payload = message.getCustomPayload();
                     if (payload != null)
-                        messageSize += CBUtil.sizeOfBytesMap(payload);
-                    body = CBUtil.allocator.buffer(messageSize);
+                        messageSize += ByteBufUtil.sizeOfBytesMap(payload);
+                    body = ByteBufUtil.allocator.buffer(messageSize);
                     if (payload != null)
                     {
-                        CBUtil.writeBytesMap(payload, body);
+                        ByteBufUtil.writeBytesMap(payload, body);
                         flags.add(Frame.Header.Flag.CUSTOM_PAYLOAD);
                     }
                 }

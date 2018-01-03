@@ -27,16 +27,14 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
-import org.apache.cassandra.cql3.statements.BatchStatement;
-import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
-import org.apache.cassandra.cql3.statements.UpdateStatement;
 import org.apache.cassandra.db.fullquerylog.FullQueryLogger;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.*;
+import org.apache.cassandra.utils.ByteBufUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.UUIDGen;
@@ -47,26 +45,26 @@ public class ExecuteMessage extends Message.Request
     {
         public ExecuteMessage decode(ByteBuf body, ProtocolVersion version)
         {
-            MD5Digest statementId = MD5Digest.wrap(CBUtil.readBytes(body));
+            MD5Digest statementId = MD5Digest.wrap(ByteBufUtil.readBytes(body));
 
             MD5Digest resultMetadataId = null;
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
-                resultMetadataId = MD5Digest.wrap(CBUtil.readBytes(body));
+                resultMetadataId = MD5Digest.wrap(ByteBufUtil.readBytes(body));
 
             return new ExecuteMessage(statementId, resultMetadataId, QueryOptions.codec.decode(body, version));
         }
 
         public void encode(ExecuteMessage msg, ByteBuf dest, ProtocolVersion version)
         {
-            CBUtil.writeBytes(msg.statementId.bytes, dest);
+            ByteBufUtil.writeBytes(msg.statementId.bytes, dest);
 
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
-                CBUtil.writeBytes(msg.resultMetadataId.bytes, dest);
+                ByteBufUtil.writeBytes(msg.resultMetadataId.bytes, dest);
 
             if (version == ProtocolVersion.V1)
             {
-                CBUtil.writeValueList(msg.options.getValues(), dest);
-                CBUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
+                ByteBufUtil.writeValueList(msg.options.getValues(), dest);
+                ByteBufUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
             }
             else
             {
@@ -77,15 +75,15 @@ public class ExecuteMessage extends Message.Request
         public int encodedSize(ExecuteMessage msg, ProtocolVersion version)
         {
             int size = 0;
-            size += CBUtil.sizeOfBytes(msg.statementId.bytes);
+            size += ByteBufUtil.sizeOfBytes(msg.statementId.bytes);
 
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
-                size += CBUtil.sizeOfBytes(msg.resultMetadataId.bytes);
+                size += ByteBufUtil.sizeOfBytes(msg.resultMetadataId.bytes);
 
             if (version == ProtocolVersion.V1)
             {
-                size += CBUtil.sizeOfValueList(msg.options.getValues());
-                size += CBUtil.sizeOfConsistencyLevel(msg.options.getConsistency());
+                size += ByteBufUtil.sizeOfValueList(msg.options.getValues());
+                size += ByteBufUtil.sizeOfConsistencyLevel(msg.options.getConsistency());
             }
             else
             {

@@ -31,6 +31,7 @@ import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.utils.ByteBufUtil;
 import org.apache.cassandra.utils.Pair;
 
 public enum DataType
@@ -99,7 +100,7 @@ public enum DataType
         switch (this)
         {
             case CUSTOM:
-                return CBUtil.readString(cb);
+                return ByteBufUtil.readString(cb);
             case LIST:
                 return DataType.toType(codec.decodeOne(cb, version));
             case SET:
@@ -110,14 +111,14 @@ public enum DataType
                 l.add(DataType.toType(codec.decodeOne(cb, version)));
                 return l;
             case UDT:
-                String ks = CBUtil.readString(cb);
-                ByteBuffer name = UTF8Type.instance.decompose(CBUtil.readString(cb));
+                String ks = ByteBufUtil.readString(cb);
+                ByteBuffer name = UTF8Type.instance.decompose(ByteBufUtil.readString(cb));
                 int n = cb.readUnsignedShort();
                 List<FieldIdentifier> fieldNames = new ArrayList<>(n);
                 List<AbstractType<?>> fieldTypes = new ArrayList<>(n);
                 for (int i = 0; i < n; i++)
                 {
-                    fieldNames.add(FieldIdentifier.forInternalString(CBUtil.readString(cb)));
+                    fieldNames.add(FieldIdentifier.forInternalString(ByteBufUtil.readString(cb)));
                     fieldTypes.add(DataType.toType(codec.decodeOne(cb, version)));
                 }
                 return new UserType(ks, name, fieldNames, fieldTypes, true);
@@ -137,7 +138,7 @@ public enum DataType
         // Serialize as CUSTOM if client on the other side's version is < required for type
         if (version.isSmallerThan(protocolVersion))
         {
-            CBUtil.writeString(value.toString(), cb);
+            ByteBufUtil.writeString(value.toString(), cb);
             return;
         }
 
@@ -145,7 +146,7 @@ public enum DataType
         {
             case CUSTOM:
                 assert value instanceof String;
-                CBUtil.writeString((String)value, cb);
+                ByteBufUtil.writeString((String)value, cb);
                 break;
             case LIST:
                 codec.writeOne(DataType.fromType((AbstractType)value, version), cb, version);
@@ -160,12 +161,12 @@ public enum DataType
                 break;
             case UDT:
                 UserType udt = (UserType)value;
-                CBUtil.writeString(udt.keyspace, cb);
-                CBUtil.writeString(UTF8Type.instance.compose(udt.name), cb);
+                ByteBufUtil.writeString(udt.keyspace, cb);
+                ByteBufUtil.writeString(UTF8Type.instance.compose(udt.name), cb);
                 cb.writeShort(udt.size());
                 for (int i = 0; i < udt.size(); i++)
                 {
-                    CBUtil.writeString(udt.fieldName(i).toString(), cb);
+                    ByteBufUtil.writeString(udt.fieldName(i).toString(), cb);
                     codec.writeOne(DataType.fromType(udt.fieldType(i), version), cb, version);
                 }
                 break;
@@ -182,12 +183,12 @@ public enum DataType
     {
         // Serialize as CUSTOM if client on the other side's version is < required for type
         if (version.isSmallerThan(protocolVersion))
-            return CBUtil.sizeOfString(value.toString());
+            return ByteBufUtil.sizeOfString(value.toString());
 
         switch (this)
         {
             case CUSTOM:
-                return CBUtil.sizeOfString((String)value);
+                return ByteBufUtil.sizeOfString((String)value);
             case LIST:
             case SET:
                 return codec.oneSerializedSize(DataType.fromType((AbstractType)value, version), version);
@@ -200,12 +201,12 @@ public enum DataType
             case UDT:
                 UserType udt = (UserType)value;
                 int size = 0;
-                size += CBUtil.sizeOfString(udt.keyspace);
-                size += CBUtil.sizeOfString(UTF8Type.instance.compose(udt.name));
+                size += ByteBufUtil.sizeOfString(udt.keyspace);
+                size += ByteBufUtil.sizeOfString(UTF8Type.instance.compose(udt.name));
                 size += 2;
                 for (int i = 0; i < udt.size(); i++)
                 {
-                    size += CBUtil.sizeOfString(udt.fieldName(i).toString());
+                    size += ByteBufUtil.sizeOfString(udt.fieldName(i).toString());
                     size += codec.oneSerializedSize(DataType.fromType(udt.fieldType(i), version), version);
                 }
                 return size;

@@ -25,6 +25,7 @@ import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.*;
+import org.apache.cassandra.utils.ByteBufUtil;
 import org.apache.cassandra.utils.CassandraVersion;
 
 /**
@@ -41,17 +42,17 @@ public class StartupMessage extends Message.Request
     {
         public StartupMessage decode(ByteBuf body, ProtocolVersion version)
         {
-            return new StartupMessage(upperCaseKeys(CBUtil.readStringMap(body)));
+            return new StartupMessage(upperCaseKeys(ByteBufUtil.readStringMap(body)));
         }
 
         public void encode(StartupMessage msg, ByteBuf dest, ProtocolVersion version)
         {
-            CBUtil.writeStringMap(msg.options, dest);
+            ByteBufUtil.writeStringMap(msg.options, dest);
         }
 
         public int encodedSize(StartupMessage msg, ProtocolVersion version)
         {
-            return CBUtil.sizeOfStringMap(msg.options);
+            return ByteBufUtil.sizeOfStringMap(msg.options);
         }
     };
 

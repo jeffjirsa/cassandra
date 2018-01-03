@@ -24,6 +24,7 @@ import java.util.List;
 
 import com.google.common.base.Objects;
 import io.netty.buffer.ByteBuf;
+import org.apache.cassandra.utils.ByteBufUtil;
 
 public abstract class Event
 {
@@ -51,7 +52,7 @@ public abstract class Event
 
     public static Event deserialize(ByteBuf cb, ProtocolVersion version)
     {
-        Type eventType = CBUtil.readEnumValue(Type.class, cb);
+        Type eventType = ByteBufUtil.readEnumValue(Type.class, cb);
         if (eventType.minimumVersion.isGreaterThan(version))
             throw new ProtocolException("Event " + eventType.name() + " not valid for protocol version " + version);
         switch (eventType)
@@ -70,13 +71,13 @@ public abstract class Event
     {
         if (type.minimumVersion.isGreaterThan(version))
             throw new ProtocolException("Event " + type.name() + " not valid for protocol version " + version);
-        CBUtil.writeEnumValue(type, dest);
+        ByteBufUtil.writeEnumValue(type, dest);
         serializeEvent(dest, version);
     }
 
     public int serializedSize(ProtocolVersion version)
     {
-        return CBUtil.sizeOfEnumValue(type) + eventSerializedSize(version);
+        return ByteBufUtil.sizeOfEnumValue(type) + eventSerializedSize(version);
     }
 
     protected abstract void serializeEvent(ByteBuf dest, ProtocolVersion version);
@@ -128,20 +129,20 @@ public abstract class Event
         // Assumes the type has already been deserialized
         private static TopologyChange deserializeEvent(ByteBuf cb, ProtocolVersion version)
         {
-            Change change = CBUtil.readEnumValue(Change.class, cb);
-            InetSocketAddress node = CBUtil.readInet(cb);
+            Change change = ByteBufUtil.readEnumValue(Change.class, cb);
+            InetSocketAddress node = ByteBufUtil.readInet(cb);
             return new TopologyChange(change, node);
         }
 
         protected void serializeEvent(ByteBuf dest, ProtocolVersion version)
         {
-            CBUtil.writeEnumValue(change, dest);
-            CBUtil.writeInet(node, dest);
+            ByteBufUtil.writeEnumValue(change, dest);
+            ByteBufUtil.writeInet(node, dest);
         }
 
         protected int eventSerializedSize(ProtocolVersion version)
         {
-            return CBUtil.sizeOfEnumValue(change) + CBUtil.sizeOfInet(node);
+            return ByteBufUtil.sizeOfEnumValue(change) + ByteBufUtil.sizeOfInet(node);
         }
 
         @Override
@@ -194,20 +195,20 @@ public abstract class Event
         // Assumes the type has already been deserialized
         private static StatusChange deserializeEvent(ByteBuf cb, ProtocolVersion version)
         {
-            Status status = CBUtil.readEnumValue(Status.class, cb);
-            InetSocketAddress node = CBUtil.readInet(cb);
+            Status status = ByteBufUtil.readEnumValue(Status.class, cb);
+            InetSocketAddress node = ByteBufUtil.readInet(cb);
             return new StatusChange(status, node);
         }
 
         protected void serializeEvent(ByteBuf dest, ProtocolVersion version)
         {
-            CBUtil.writeEnumValue(status, dest);
-            CBUtil.writeInet(node, dest);
+            ByteBufUtil.writeEnumValue(status, dest);
+            ByteBufUtil.writeInet(node, dest);
         }
 
         protected int eventSerializedSize(ProtocolVersion version)
         {
-            return CBUtil.sizeOfEnumValue(status) + CBUtil.sizeOfInet(node);
+            return ByteBufUtil.sizeOfEnumValue(status) + ByteBufUtil.sizeOfInet(node);
         }
 
         @Override
@@ -270,22 +271,22 @@ public abstract class Event
         // Assumes the type has already been deserialized
         public static SchemaChange deserializeEvent(ByteBuf cb, ProtocolVersion version)
         {
-            Change change = CBUtil.readEnumValue(Change.class, cb);
+            Change change = ByteBufUtil.readEnumValue(Change.class, cb);
             if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
             {
-                Target target = CBUtil.readEnumValue(Target.class, cb);
-                String keyspace = CBUtil.readString(cb);
-                String tableOrType = target == Target.KEYSPACE ? null : CBUtil.readString(cb);
+                Target target = ByteBufUtil.readEnumValue(Target.class, cb);
+                String keyspace = ByteBufUtil.readString(cb);
+                String tableOrType = target == Target.KEYSPACE ? null : ByteBufUtil.readString(cb);
                 List<String> argTypes = null;
                 if (target == Target.FUNCTION || target == Target.AGGREGATE)
-                    argTypes = CBUtil.readStringList(cb);
+                    argTypes = ByteBufUtil.readStringList(cb);
 
                 return new SchemaChange(change, target, keyspace, tableOrType, argTypes);
             }
             else
             {
-                String keyspace = CBUtil.readString(cb);
-                String table = CBUtil.readString(cb);
+                String keyspace = ByteBufUtil.readString(cb);
+                String table = ByteBufUtil.readString(cb);
                 return new SchemaChange(change, table.isEmpty() ? Target.KEYSPACE : Target.TABLE, keyspace, table.isEmpty() ? null : table);
             }
         }
@@ -297,31 +298,31 @@ public abstract class Event
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V4))
                 {
                     // available since protocol version 4
-                    CBUtil.writeEnumValue(change, dest);
-                    CBUtil.writeEnumValue(target, dest);
-                    CBUtil.writeString(keyspace, dest);
-                    CBUtil.writeString(name, dest);
-                    CBUtil.writeStringList(argTypes, dest);
+                    ByteBufUtil.writeEnumValue(change, dest);
+                    ByteBufUtil.writeEnumValue(target, dest);
+                    ByteBufUtil.writeString(keyspace, dest);
+                    ByteBufUtil.writeString(name, dest);
+                    ByteBufUtil.writeStringList(argTypes, dest);
                 }
                 else
                 {
                     // not available in protocol versions < 4 - just say the keyspace was updated.
-                    CBUtil.writeEnumValue(Change.UPDATED, dest);
+                    ByteBufUtil.writeEnumValue(Change.UPDATED, dest);
                     if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
-                        CBUtil.writeEnumValue(Target.KEYSPACE, dest);
-                    CBUtil.writeString(keyspace, dest);
-                    CBUtil.writeString("", dest);
+                        ByteBufUtil.writeEnumValue(Target.KEYSPACE, dest);
+                    ByteBufUtil.writeString(keyspace, dest);
+                    ByteBufUtil.writeString("", dest);
                 }
                 return;
             }
 
             if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
             {
-                CBUtil.writeEnumValue(change, dest);
-                CBUtil.writeEnumValue(target, dest);
-                CBUtil.writeString(keyspace, dest);
+                ByteBufUtil.writeEnumValue(change, dest);
+                ByteBufUtil.writeEnumValue(target, dest);
+                ByteBufUtil.writeString(keyspace, dest);
                 if (target != Target.KEYSPACE)
-                    CBUtil.writeString(name, dest);
+                    ByteBufUtil.writeString(name, dest);
             }
             else
             {
@@ -329,15 +330,15 @@ public abstract class Event
                 {
                     // For the v1/v2 protocol, we have no way to represent type changes, so we simply say the keyspace
                     // was updated.  See CASSANDRA-7617.
-                    CBUtil.writeEnumValue(Change.UPDATED, dest);
-                    CBUtil.writeString(keyspace, dest);
-                    CBUtil.writeString("", dest);
+                    ByteBufUtil.writeEnumValue(Change.UPDATED, dest);
+                    ByteBufUtil.writeString(keyspace, dest);
+                    ByteBufUtil.writeString("", dest);
                 }
                 else
                 {
-                    CBUtil.writeEnumValue(change, dest);
-                    CBUtil.writeString(keyspace, dest);
-                    CBUtil.writeString(target == Target.KEYSPACE ? "" : name, dest);
+                    ByteBufUtil.writeEnumValue(change, dest);
+                    ByteBufUtil.writeString(keyspace, dest);
+                    ByteBufUtil.writeString(target == Target.KEYSPACE ? "" : name, dest);
                 }
             }
         }
@@ -347,28 +348,28 @@ public abstract class Event
             if (target == Target.FUNCTION || target == Target.AGGREGATE)
             {
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V4))
-                    return CBUtil.sizeOfEnumValue(change)
-                               + CBUtil.sizeOfEnumValue(target)
-                               + CBUtil.sizeOfString(keyspace)
-                               + CBUtil.sizeOfString(name)
-                               + CBUtil.sizeOfStringList(argTypes);
+                    return ByteBufUtil.sizeOfEnumValue(change)
+                           + ByteBufUtil.sizeOfEnumValue(target)
+                           + ByteBufUtil.sizeOfString(keyspace)
+                           + ByteBufUtil.sizeOfString(name)
+                           + ByteBufUtil.sizeOfStringList(argTypes);
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
-                    return CBUtil.sizeOfEnumValue(Change.UPDATED)
-                           + CBUtil.sizeOfEnumValue(Target.KEYSPACE)
-                           + CBUtil.sizeOfString(keyspace);
-                return CBUtil.sizeOfEnumValue(Change.UPDATED)
-                       + CBUtil.sizeOfString(keyspace)
-                       + CBUtil.sizeOfString("");
+                    return ByteBufUtil.sizeOfEnumValue(Change.UPDATED)
+                           + ByteBufUtil.sizeOfEnumValue(Target.KEYSPACE)
+                           + ByteBufUtil.sizeOfString(keyspace);
+                return ByteBufUtil.sizeOfEnumValue(Change.UPDATED)
+                       + ByteBufUtil.sizeOfString(keyspace)
+                       + ByteBufUtil.sizeOfString("");
             }
 
             if (version.isGreaterOrEqualTo(ProtocolVersion.V3))
             {
-                int size = CBUtil.sizeOfEnumValue(change)
-                         + CBUtil.sizeOfEnumValue(target)
-                         + CBUtil.sizeOfString(keyspace);
+                int size = ByteBufUtil.sizeOfEnumValue(change)
+                           + ByteBufUtil.sizeOfEnumValue(target)
+                           + ByteBufUtil.sizeOfString(keyspace);
 
                 if (target != Target.KEYSPACE)
-                    size += CBUtil.sizeOfString(name);
+                    size += ByteBufUtil.sizeOfString(name);
 
                 return size;
             }
@@ -376,13 +377,13 @@ public abstract class Event
             {
                 if (target == Target.TYPE)
                 {
-                    return CBUtil.sizeOfEnumValue(Change.UPDATED)
-                         + CBUtil.sizeOfString(keyspace)
-                         + CBUtil.sizeOfString("");
+                    return ByteBufUtil.sizeOfEnumValue(Change.UPDATED)
+                           + ByteBufUtil.sizeOfString(keyspace)
+                           + ByteBufUtil.sizeOfString("");
                 }
-                return CBUtil.sizeOfEnumValue(change)
-                     + CBUtil.sizeOfString(keyspace)
-                     + CBUtil.sizeOfString(target == Target.KEYSPACE ? "" : name);
+                return ByteBufUtil.sizeOfEnumValue(change)
+                       + ByteBufUtil.sizeOfString(keyspace)
+                       + ByteBufUtil.sizeOfString(target == Target.KEYSPACE ? "" : name);
             }
         }
 
