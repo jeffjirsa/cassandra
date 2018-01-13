@@ -39,8 +39,8 @@ public class OverlapIterator<I extends Comparable<? super I>, V>
     // indexing into sortedByMax, tracks the next interval to exclude
     int nextToExclude;
     final List<Interval<I, V>> sortedByMax;
-    final SortedSet<V> overlaps;
-    final SortedSet<V> accessible;
+    private final SortedSet<V> overlaps;
+    private final SortedSet<V> accessible;
 
     public OverlapIterator(Collection<Interval<I, V>> intervals, Comparator<V> comparator)
     {
