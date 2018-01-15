@@ -41,7 +41,7 @@ import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.ByteBufUtil;
+import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -62,7 +62,7 @@ public class FullQueryLogger
     static
     {
         int tempSize = 0;
-        ByteBuf buf = ByteBufUtil.allocator.buffer(0, 0);
+        ByteBuf buf = CBUtil.allocator.buffer(0, 0);
         try
         {
             tempSize = Ints.checkedCast(ObjectSizes.measure(buf));
@@ -340,7 +340,7 @@ public class FullQueryLogger
             ProtocolVersion version = queryOptions.getProtocolVersion();
             this.protocolVersion = version.asInt();
             int optionsSize = QueryOptions.codec.encodedSize(queryOptions, version);
-            queryOptionsBuffer = ByteBufUtil.allocator.buffer(optionsSize, optionsSize);
+            queryOptionsBuffer = CBUtil.allocator.buffer(optionsSize, optionsSize);
             /*
              * Struggled with what tradeoff to make in terms of query options which is potentially large and complicated
              * There is tension between low garbage production (or allocator overhead), small working set size, and CPU overhead reserializing the

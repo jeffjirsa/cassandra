@@ -29,7 +29,7 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.ByteBufUtil;
+import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -45,26 +45,26 @@ public class QueryMessage extends Message.Request
     {
         public QueryMessage decode(ByteBuf body, ProtocolVersion version)
         {
-            String query = ByteBufUtil.readLongString(body);
+            String query = CBUtil.readLongString(body);
             return new QueryMessage(query, QueryOptions.codec.decode(body, version));
         }
 
         public void encode(QueryMessage msg, ByteBuf dest, ProtocolVersion version)
         {
-            ByteBufUtil.writeLongString(msg.query, dest);
+            CBUtil.writeLongString(msg.query, dest);
             if (version == ProtocolVersion.V1)
-                ByteBufUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
+                CBUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
             else
                 QueryOptions.codec.encode(msg.options, dest, version);
         }
 
         public int encodedSize(QueryMessage msg, ProtocolVersion version)
         {
-            int size = ByteBufUtil.sizeOfLongString(msg.query);
+            int size = CBUtil.sizeOfLongString(msg.query);
 
             if (version == ProtocolVersion.V1)
             {
-                size += ByteBufUtil.sizeOfConsistencyLevel(msg.options.getConsistency());
+                size += CBUtil.sizeOfConsistencyLevel(msg.options.getConsistency());
             }
             else
             {

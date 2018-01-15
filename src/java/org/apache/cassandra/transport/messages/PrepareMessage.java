@@ -26,7 +26,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.*;
-import org.apache.cassandra.utils.ByteBufUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -36,7 +35,7 @@ public class PrepareMessage extends Message.Request
     {
         public PrepareMessage decode(ByteBuf body, ProtocolVersion version)
         {
-            String query = ByteBufUtil.readLongString(body);
+            String query = CBUtil.readLongString(body);
             String keyspace = null;
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5)) {
                 // If flags grows, we may want to consider creating a PrepareOptions class with an internal codec
@@ -45,14 +44,14 @@ public class PrepareMessage extends Message.Request
 
                 int flags = (int)body.readUnsignedInt();
                 if ((flags & 0x1) == 0x1)
-                    keyspace = ByteBufUtil.readString(body);
+                    keyspace = CBUtil.readString(body);
             }
             return new PrepareMessage(query, keyspace);
         }
 
         public void encode(PrepareMessage msg, ByteBuf dest, ProtocolVersion version)
         {
-            ByteBufUtil.writeLongString(msg.query, dest);
+            CBUtil.writeLongString(msg.query, dest);
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
             {
                 // If we have no keyspace, write out a 0-valued flag field.
@@ -60,14 +59,14 @@ public class PrepareMessage extends Message.Request
                     dest.writeInt(0x0);
                 else {
                     dest.writeInt(0x1);
-                    ByteBufUtil.writeString(msg.keyspace, dest);
+                    CBUtil.writeString(msg.keyspace, dest);
                 }
             }
         }
 
         public int encodedSize(PrepareMessage msg, ProtocolVersion version)
         {
-            int size = ByteBufUtil.sizeOfLongString(msg.query);
+            int size = CBUtil.sizeOfLongString(msg.query);
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
             {
                 // We always emit a flags int
@@ -76,7 +75,7 @@ public class PrepareMessage extends Message.Request
                 // If we have a keyspace, we'd write it out. Otherwise, we'd write nothing.
                 size += msg.keyspace == null
                     ? 0
-                    : ByteBufUtil.sizeOfString(msg.keyspace);
+                    : CBUtil.sizeOfString(msg.keyspace);
             }
             return size;
         }

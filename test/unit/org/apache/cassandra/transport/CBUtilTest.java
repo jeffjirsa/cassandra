@@ -25,9 +25,8 @@ import org.junit.Test;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
-import org.apache.cassandra.utils.ByteBufUtil;
 
-public class ByteBufUtilTest
+public class CBUtilTest
 {
     private static final ByteBufAllocator allocator = PooledByteBufAllocator.DEFAULT;
     private ByteBuf buf;
@@ -43,13 +42,13 @@ public class ByteBufUtilTest
     public void writeAndReadString()
     {
         final String text = "if you're happy and you know it, write your tests";
-        int size = ByteBufUtil.sizeOfString(text);
+        int size = CBUtil.sizeOfString(text);
 
         buf = allocator.heapBuffer(size);
-        ByteBufUtil.writeString(text, buf);
+        CBUtil.writeString(text, buf);
         Assert.assertEquals(size, buf.writerIndex());
         Assert.assertEquals(0, buf.readerIndex());
-        Assert.assertEquals(text, ByteBufUtil.readString(buf));
+        Assert.assertEquals(text, CBUtil.readString(buf));
         Assert.assertEquals(buf.writerIndex(), buf.readerIndex());
     }
 
@@ -57,13 +56,13 @@ public class ByteBufUtilTest
     public void writeAndReadLongString()
     {
         final String text = "if you're happy and you know it, write your tests";
-        int size = ByteBufUtil.sizeOfLongString(text);
+        int size = CBUtil.sizeOfLongString(text);
 
         buf = allocator.heapBuffer(size);
-        ByteBufUtil.writeLongString(text, buf);
+        CBUtil.writeLongString(text, buf);
         Assert.assertEquals(size, buf.writerIndex());
         Assert.assertEquals(0, buf.readerIndex());
-        Assert.assertEquals(text, ByteBufUtil.readLongString(buf));
+        Assert.assertEquals(text, CBUtil.readLongString(buf));
         Assert.assertEquals(buf.writerIndex(), buf.readerIndex());
     }
 }

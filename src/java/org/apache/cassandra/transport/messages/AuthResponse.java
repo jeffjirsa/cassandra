@@ -26,7 +26,6 @@ import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.metrics.AuthMetrics;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.*;
-import org.apache.cassandra.utils.ByteBufUtil;
 
 /**
  * A SASL token message sent from client to server. Some SASL
@@ -42,7 +41,7 @@ public class AuthResponse extends Message.Request
             if (version == ProtocolVersion.V1)
                 throw new ProtocolException("SASL Authentication is not supported in version 1 of the protocol");
 
-            ByteBuffer b = ByteBufUtil.readValue(body);
+            ByteBuffer b = CBUtil.readValue(body);
             byte[] token = new byte[b.remaining()];
             b.get(token);
             return new AuthResponse(token);
@@ -50,12 +49,12 @@ public class AuthResponse extends Message.Request
 
         public void encode(AuthResponse response, ByteBuf dest, ProtocolVersion version)
         {
-            ByteBufUtil.writeValue(response.token, dest);
+            CBUtil.writeValue(response.token, dest);
         }
 
         public int encodedSize(AuthResponse response, ProtocolVersion version)
         {
-            return ByteBufUtil.sizeOfValue(response.token);
+            return CBUtil.sizeOfValue(response.token);
         }
     };
 

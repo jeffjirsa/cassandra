@@ -33,7 +33,6 @@ import io.netty.util.Attribute;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.messages.ErrorMessage;
-import org.apache.cassandra.utils.ByteBufUtil;
 
 public class Frame
 {
@@ -280,7 +279,7 @@ public class Frame
         public void encode(ChannelHandlerContext ctx, Frame frame, List<Object> results)
         throws IOException
         {
-            ByteBuf header = ByteBufUtil.allocator.buffer(Header.LENGTH);
+            ByteBuf header = CBUtil.allocator.buffer(Header.LENGTH);
 
             Message.Type type = frame.header.type;
             header.writeByte(type.direction.addToVersion(frame.header.version.asInt()));

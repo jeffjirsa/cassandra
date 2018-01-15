@@ -37,7 +37,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.*;
-import org.apache.cassandra.utils.ByteBufUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.UUIDGen;
@@ -56,12 +55,12 @@ public class BatchMessage extends Message.Request
             {
                 byte kind = body.readByte();
                 if (kind == 0)
-                    queryOrIds.add(ByteBufUtil.readLongString(body));
+                    queryOrIds.add(CBUtil.readLongString(body));
                 else if (kind == 1)
-                    queryOrIds.add(MD5Digest.wrap(ByteBufUtil.readBytes(body)));
+                    queryOrIds.add(MD5Digest.wrap(CBUtil.readBytes(body)));
                 else
                     throw new ProtocolException("Invalid query kind in BATCH messages. Must be 0 or 1 but got " + kind);
-                variables.add(ByteBufUtil.readValueList(body, version));
+                variables.add(CBUtil.readValueList(body, version));
             }
             QueryOptions options = QueryOptions.codec.decode(body, version);
 
@@ -80,15 +79,15 @@ public class BatchMessage extends Message.Request
                 Object q = msg.queryOrIdList.get(i);
                 dest.writeByte((byte)(q instanceof String ? 0 : 1));
                 if (q instanceof String)
-                    ByteBufUtil.writeLongString((String)q, dest);
+                    CBUtil.writeLongString((String)q, dest);
                 else
-                    ByteBufUtil.writeBytes(((MD5Digest)q).bytes, dest);
+                    CBUtil.writeBytes(((MD5Digest)q).bytes, dest);
 
-                ByteBufUtil.writeValueList(msg.values.get(i), dest);
+                CBUtil.writeValueList(msg.values.get(i), dest);
             }
 
             if (version.isSmallerThan(ProtocolVersion.V3))
-                ByteBufUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
+                CBUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
             else
                 QueryOptions.codec.encode(msg.options, dest, version);
         }
@@ -100,13 +99,13 @@ public class BatchMessage extends Message.Request
             {
                 Object q = msg.queryOrIdList.get(i);
                 size += 1 + (q instanceof String
-                             ? ByteBufUtil.sizeOfLongString((String)q)
-                             : ByteBufUtil.sizeOfBytes(((MD5Digest)q).bytes));
+                             ? CBUtil.sizeOfLongString((String)q)
+                             : CBUtil.sizeOfBytes(((MD5Digest)q).bytes));
 
-                size += ByteBufUtil.sizeOfValueList(msg.values.get(i));
+                size += CBUtil.sizeOfValueList(msg.values.get(i));
             }
             size += version.isSmallerThan(ProtocolVersion.V3)
-                  ? ByteBufUtil.sizeOfConsistencyLevel(msg.options.getConsistency())
+                  ? CBUtil.sizeOfConsistencyLevel(msg.options.getConsistency())
                   : QueryOptions.codec.encodedSize(msg.options, version);
             return size;
         }

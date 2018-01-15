@@ -22,9 +22,11 @@ import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
 
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.transport.*;
-import org.apache.cassandra.utils.ByteBufUtil;
 import org.apache.cassandra.utils.MD5Digest;
 
 public abstract class ResultMessage extends Message.Response
@@ -146,20 +148,20 @@ public abstract class ResultMessage extends Message.Response
         {
             public ResultMessage decode(ByteBuf body, ProtocolVersion version)
             {
-                String keyspace = ByteBufUtil.readString(body);
+                String keyspace = CBUtil.readString(body);
                 return new SetKeyspace(keyspace);
             }
 
             public void encode(ResultMessage msg, ByteBuf dest, ProtocolVersion version)
             {
                 assert msg instanceof SetKeyspace;
-                ByteBufUtil.writeString(((SetKeyspace)msg).keyspace, dest);
+                CBUtil.writeString(((SetKeyspace)msg).keyspace, dest);
             }
 
             public int encodedSize(ResultMessage msg, ProtocolVersion version)
             {
                 assert msg instanceof SetKeyspace;
-                return ByteBufUtil.sizeOfString(((SetKeyspace)msg).keyspace);
+                return CBUtil.sizeOfString(((SetKeyspace)msg).keyspace);
             }
         };
 
@@ -215,10 +217,10 @@ public abstract class ResultMessage extends Message.Response
         {
             public ResultMessage decode(ByteBuf body, ProtocolVersion version)
             {
-                MD5Digest id = MD5Digest.wrap(ByteBufUtil.readBytes(body));
+                MD5Digest id = MD5Digest.wrap(CBUtil.readBytes(body));
                 MD5Digest resultMetadataId = null;
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
-                    resultMetadataId = MD5Digest.wrap(ByteBufUtil.readBytes(body));
+                    resultMetadataId = MD5Digest.wrap(CBUtil.readBytes(body));
                 ResultSet.PreparedMetadata metadata = ResultSet.PreparedMetadata.codec.decode(body, version);
 
                 ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.EMPTY;
@@ -234,9 +236,9 @@ public abstract class ResultMessage extends Message.Response
                 Prepared prepared = (Prepared)msg;
                 assert prepared.statementId != null;
 
-                ByteBufUtil.writeBytes(prepared.statementId.bytes, dest);
+                CBUtil.writeBytes(prepared.statementId.bytes, dest);
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
-                    ByteBufUtil.writeBytes(prepared.resultMetadataId.bytes, dest);
+                    CBUtil.writeBytes(prepared.resultMetadataId.bytes, dest);
 
                 ResultSet.PreparedMetadata.codec.encode(prepared.metadata, dest, version);
                 if (version.isGreaterThan(ProtocolVersion.V1))
@@ -250,9 +252,9 @@ public abstract class ResultMessage extends Message.Response
                 assert prepared.statementId != null;
 
                 int size = 0;
-                size += ByteBufUtil.sizeOfBytes(prepared.statementId.bytes);
+                size += CBUtil.sizeOfBytes(prepared.statementId.bytes);
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
-                    size += ByteBufUtil.sizeOfBytes(prepared.resultMetadataId.bytes);
+                    size += CBUtil.sizeOfBytes(prepared.resultMetadataId.bytes);
                 size += ResultSet.PreparedMetadata.codec.encodedSize(prepared.metadata, version);
                 if (version.isGreaterThan(ProtocolVersion.V1))
                     size += ResultSet.ResultMetadata.codec.encodedSize(prepared.resultMetadata, version);

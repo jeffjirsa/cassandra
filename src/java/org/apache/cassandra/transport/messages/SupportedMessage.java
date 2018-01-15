@@ -22,7 +22,7 @@ import java.util.Map;
 
 import io.netty.buffer.ByteBuf;
 
-import org.apache.cassandra.utils.ByteBufUtil;
+import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -35,17 +35,17 @@ public class SupportedMessage extends Message.Response
     {
         public SupportedMessage decode(ByteBuf body, ProtocolVersion version)
         {
-            return new SupportedMessage(ByteBufUtil.readStringToStringListMap(body));
+            return new SupportedMessage(CBUtil.readStringToStringListMap(body));
         }
 
         public void encode(SupportedMessage msg, ByteBuf dest, ProtocolVersion version)
         {
-            ByteBufUtil.writeStringToStringListMap(msg.supported, dest);
+            CBUtil.writeStringToStringListMap(msg.supported, dest);
         }
 
         public int encodedSize(SupportedMessage msg, ProtocolVersion version)
         {
-            return ByteBufUtil.sizeOfStringToStringListMap(msg.supported);
+            return CBUtil.sizeOfStringToStringListMap(msg.supported);
         }
     };
 

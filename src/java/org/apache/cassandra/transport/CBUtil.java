@@ -15,10 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.utils;
+package org.apache.cassandra.transport;
 
-import java.io.DataInput;
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -37,15 +35,17 @@ import java.util.UUID;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.EmptyByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
+import io.netty.util.CharsetUtil;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.transport.ProtocolException;
-import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.UUIDGen;
 
 /**
  * ByteBuf utility methods.
@@ -54,7 +54,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
  * advancing the write position. Functions are also provided to create
  * ByteBuf while avoiding copies.
  */
-public abstract class ByteBufUtil
+public abstract class CBUtil
 {
     public static final boolean USE_HEAP_ALLOCATOR = Boolean.getBoolean(Config.PROPERTY_PREFIX + "netty_use_heap_allocator");
     public static final ByteBufAllocator allocator = USE_HEAP_ALLOCATOR ? new UnpooledByteBufAllocator(false) : new PooledByteBufAllocator(true);
@@ -71,7 +71,7 @@ public abstract class ByteBufUtil
 
     private final static FastThreadLocal<CharBuffer> TL_CHAR_BUFFER = new FastThreadLocal<>();
 
-    private ByteBufUtil() {}
+    private CBUtil() {}
 
 
     // Taken from Netty's ChannelBuffers.decodeString(). We need to use our own decoder to properly handle invalid
@@ -141,7 +141,7 @@ public abstract class ByteBufUtil
     {
         int writerIndex = cb.writerIndex();
         cb.writeShort(0);
-        int written = io.netty.buffer.ByteBufUtil.writeUtf8(cb, str);
+        int written = ByteBufUtil.writeUtf8(cb, str);
         cb.setShort(writerIndex, written);
     }
 
@@ -167,7 +167,7 @@ public abstract class ByteBufUtil
     {
         int writerIndex = cb.writerIndex();
         cb.writeInt(0);
-        int written = io.netty.buffer.ByteBufUtil.writeUtf8(cb, str);
+        int written = ByteBufUtil.writeUtf8(cb, str);
         cb.setInt(writerIndex, written);
     }
 
@@ -253,7 +253,7 @@ public abstract class ByteBufUtil
 
     public static <T extends Enum<T>> T readEnumValue(Class<T> enumType, ByteBuf cb)
     {
-        String value = ByteBufUtil.readString(cb);
+        String value = CBUtil.readString(cb);
         try
         {
             return Enum.valueOf(enumType, value.toUpperCase());
@@ -480,14 +480,14 @@ public abstract class ByteBufUtil
     {
         cb.writeShort(values.size());
         for (ByteBuffer value : values)
-            ByteBufUtil.writeValue(value, cb);
+            CBUtil.writeValue(value, cb);
     }
 
     public static int sizeOfValueList(List<ByteBuffer> values)
     {
         int size = 2;
         for (ByteBuffer value : values)
-            size += ByteBufUtil.sizeOfValue(value);
+            size += CBUtil.sizeOfValue(value);
         return size;
     }
 
@@ -580,18 +580,4 @@ public abstract class ByteBufUtil
         return bytes;
     }
 
-    public static ByteBuf emptyByteBuf()
-    {
-        return new EmptyByteBuf(allocator);
-    }
-
-    public static ByteBuf read(DataInput in, int length) throws IOException
-    {
-        if (length == 0)
-            return new EmptyByteBuf(UnpooledByteBufAllocator.DEFAULT);
-
-        byte[] bytes = new byte[length];
-        in.readFully(bytes);
-        return allocator.buffer(length).writeBytes(bytes);
-    }
 }

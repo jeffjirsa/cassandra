@@ -31,7 +31,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.CBCodec;
-import org.apache.cassandra.utils.ByteBufUtil;
+import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.Pair;
@@ -400,7 +400,7 @@ public abstract class QueryOptions
 
         public QueryOptions decode(ByteBuf body, ProtocolVersion version)
         {
-            ConsistencyLevel consistency = ByteBufUtil.readConsistencyLevel(body);
+            ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
             EnumSet<Flag> flags = Flag.deserialize(version.isGreaterOrEqualTo(ProtocolVersion.V5)
                                                    ? (int)body.readUnsignedInt()
                                                    : (int)body.readUnsignedByte());
@@ -411,13 +411,13 @@ public abstract class QueryOptions
             {
                 if (flags.contains(Flag.NAMES_FOR_VALUES))
                 {
-                    Pair<List<String>, List<ByteBuffer>> namesAndValues = ByteBufUtil.readNameAndValueList(body, version);
+                    Pair<List<String>, List<ByteBuffer>> namesAndValues = CBUtil.readNameAndValueList(body, version);
                     names = namesAndValues.left;
                     values = namesAndValues.right;
                 }
                 else
                 {
-                    values = ByteBufUtil.readValueList(body, version);
+                    values = CBUtil.readValueList(body, version);
                 }
             }
 
@@ -429,8 +429,8 @@ public abstract class QueryOptions
             if (!flags.isEmpty())
             {
                 int pageSize = flags.contains(Flag.PAGE_SIZE) ? body.readInt() : -1;
-                PagingState pagingState = flags.contains(Flag.PAGING_STATE) ? PagingState.deserialize(ByteBufUtil.readValueNoCopy(body), version) : null;
-                ConsistencyLevel serialConsistency = flags.contains(Flag.SERIAL_CONSISTENCY) ? ByteBufUtil.readConsistencyLevel(body) : ConsistencyLevel.SERIAL;
+                PagingState pagingState = flags.contains(Flag.PAGING_STATE) ? PagingState.deserialize(CBUtil.readValueNoCopy(body), version) : null;
+                ConsistencyLevel serialConsistency = flags.contains(Flag.SERIAL_CONSISTENCY) ? CBUtil.readConsistencyLevel(body) : ConsistencyLevel.SERIAL;
                 long timestamp = Long.MIN_VALUE;
                 if (flags.contains(Flag.TIMESTAMP))
                 {
@@ -439,7 +439,7 @@ public abstract class QueryOptions
                         throw new ProtocolException(String.format("Out of bound timestamp, must be in [%d, %d] (got %d)", Long.MIN_VALUE + 1, Long.MAX_VALUE, ts));
                     timestamp = ts;
                 }
-                String keyspace = flags.contains(Flag.KEYSPACE) ? ByteBufUtil.readString(body) : null;
+                String keyspace = flags.contains(Flag.KEYSPACE) ? CBUtil.readString(body) : null;
                 options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace);
             }
             DefaultQueryOptions opts = new DefaultQueryOptions(consistency, values, skipMetadata, options, version);
@@ -448,7 +448,7 @@ public abstract class QueryOptions
 
         public void encode(QueryOptions options, ByteBuf dest, ProtocolVersion version)
         {
-            ByteBufUtil.writeConsistencyLevel(options.getConsistency(), dest);
+            CBUtil.writeConsistencyLevel(options.getConsistency(), dest);
 
             EnumSet<Flag> flags = gatherFlags(options);
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
@@ -457,17 +457,17 @@ public abstract class QueryOptions
                 dest.writeByte((byte)Flag.serialize(flags));
 
             if (flags.contains(Flag.VALUES))
-                ByteBufUtil.writeValueList(options.getValues(), dest);
+                CBUtil.writeValueList(options.getValues(), dest);
             if (flags.contains(Flag.PAGE_SIZE))
                 dest.writeInt(options.getPageSize());
             if (flags.contains(Flag.PAGING_STATE))
-                ByteBufUtil.writeValue(options.getPagingState().serialize(version), dest);
+                CBUtil.writeValue(options.getPagingState().serialize(version), dest);
             if (flags.contains(Flag.SERIAL_CONSISTENCY))
-                ByteBufUtil.writeConsistencyLevel(options.getSerialConsistency(), dest);
+                CBUtil.writeConsistencyLevel(options.getSerialConsistency(), dest);
             if (flags.contains(Flag.TIMESTAMP))
                 dest.writeLong(options.getSpecificOptions().timestamp);
             if (flags.contains(Flag.KEYSPACE))
-                ByteBufUtil.writeString(options.getSpecificOptions().keyspace, dest);
+                CBUtil.writeString(options.getSpecificOptions().keyspace, dest);
 
             // Note that we don't really have to bother with NAMES_FOR_VALUES server side,
             // and in fact we never really encode QueryOptions, only decode them, so we
@@ -478,23 +478,23 @@ public abstract class QueryOptions
         {
             int size = 0;
 
-            size += ByteBufUtil.sizeOfConsistencyLevel(options.getConsistency());
+            size += CBUtil.sizeOfConsistencyLevel(options.getConsistency());
 
             EnumSet<Flag> flags = gatherFlags(options);
             size += (version.isGreaterOrEqualTo(ProtocolVersion.V5) ? 4 : 1);
 
             if (flags.contains(Flag.VALUES))
-                size += ByteBufUtil.sizeOfValueList(options.getValues());
+                size += CBUtil.sizeOfValueList(options.getValues());
             if (flags.contains(Flag.PAGE_SIZE))
                 size += 4;
             if (flags.contains(Flag.PAGING_STATE))
-                size += ByteBufUtil.sizeOfValue(options.getPagingState().serializedSize(version));
+                size += CBUtil.sizeOfValue(options.getPagingState().serializedSize(version));
             if (flags.contains(Flag.SERIAL_CONSISTENCY))
-                size += ByteBufUtil.sizeOfConsistencyLevel(options.getSerialConsistency());
+                size += CBUtil.sizeOfConsistencyLevel(options.getSerialConsistency());
             if (flags.contains(Flag.TIMESTAMP))
                 size += 8;
             if (flags.contains(Flag.KEYSPACE))
-                size += ByteBufUtil.sizeOfString(options.getSpecificOptions().keyspace);
+                size += CBUtil.sizeOfString(options.getSpecificOptions().keyspace);
             return size;
         }
 
