@@ -47,6 +47,8 @@ import org.apache.cassandra.streaming.async.NettyStreamingMessageSender;
 import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
  * Handles the streaming a one or more streams to and from a specific remote node.
@@ -373,7 +375,26 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 if (task == null)
                     task = newTask;
             }
+<<<<<<< HEAD
             task.addTransferStream(stream);
+=======
+            task.addTransferFile(details.ref, details.estimatedKeys, details.sections);
+            iter.remove();
+        }
+    }
+
+    public static class SSTableStreamingSections
+    {
+        public final Ref<SSTableReader> ref;
+        public final List<SSTableReader.PartitionPositionBounds> sections;
+        public final long estimatedKeys;
+
+        public SSTableStreamingSections(Ref<SSTableReader> ref, List<SSTableReader.PartitionPositionBounds> sections, long estimatedKeys)
+        {
+            this.ref = ref;
+            this.sections = sections;
+            this.estimatedKeys = estimatedKeys;
+>>>>>>> Refactor pair class to avoid autoboxing primitives
         }
     }
 

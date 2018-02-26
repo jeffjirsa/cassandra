@@ -26,13 +26,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.jpountz.lz4.LZ4Exception;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.Pair;
 
 public class LZ4Compressor implements ICompressor
 {
@@ -50,14 +50,14 @@ public class LZ4Compressor implements ICompressor
 
     private static final int INTEGER_BYTES = 4;
 
-    private static final ConcurrentHashMap<Pair<String, Integer>, LZ4Compressor> instances = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<CompressorTypeAndLevel, LZ4Compressor> instances = new ConcurrentHashMap<>();
 
     public static LZ4Compressor create(Map<String, String> args) throws ConfigurationException
     {
         String compressorType = validateCompressorType(args.get(LZ4_COMPRESSOR_TYPE));
         Integer compressionLevel = validateCompressionLevel(args.get(LZ4_HIGH_COMPRESSION_LEVEL));
 
-        Pair<String, Integer> compressorTypeAndLevel = Pair.create(compressorType, compressionLevel);
+        CompressorTypeAndLevel compressorTypeAndLevel = new CompressorTypeAndLevel(compressorType, compressionLevel);
         LZ4Compressor instance = instances.get(compressorTypeAndLevel);
         if (instance == null)
         {
@@ -230,5 +230,33 @@ public class LZ4Compressor implements ICompressor
     public boolean supports(BufferType bufferType)
     {
         return true;
+    }
+
+    static class CompressorTypeAndLevel
+    {
+        final String compressorType;
+        final int compresssionLevel;
+
+        CompressorTypeAndLevel(String compressorType, int level)
+        {
+            this.compressorType = compressorType;
+            this.compresssionLevel = level;
+        }
+        @Override
+        public final int hashCode()
+        {
+            int hashCode = 31 + (compressorType == null ? 0 : compressorType.hashCode());
+            return 31*hashCode * this.compresssionLevel;
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof CompressorTypeAndLevel))
+                return false;
+            CompressorTypeAndLevel that = (CompressorTypeAndLevel)o;
+            // handles nulls properly
+            return Objects.equal(compressorType, that.compressorType) && compresssionLevel == that.compresssionLevel;
+        }
     }
 }

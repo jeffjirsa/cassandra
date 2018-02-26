@@ -784,19 +784,19 @@ public class Directories
      * @return  Return a map of all snapshots to space being used
      * The pair for a snapshot has size on disk and true size.
      */
-    public Map<String, Pair<Long, Long>> getSnapshotDetails()
+    public Map<String, SnapshotDetails> getSnapshotDetails()
     {
         List<File> snapshots = listSnapshots();
-        final Map<String, Pair<Long, Long>> snapshotSpaceMap = Maps.newHashMapWithExpectedSize(snapshots.size());
+        final Map<String, SnapshotDetails> snapshotSpaceMap = Maps.newHashMapWithExpectedSize(snapshots.size());
         for (File snapshot : snapshots)
         {
             final long sizeOnDisk = FileUtils.folderSize(snapshot);
             final long trueSize = getTrueAllocatedSizeIn(snapshot);
-            Pair<Long, Long> spaceUsed = snapshotSpaceMap.get(snapshot.getName());
+            SnapshotDetails spaceUsed = snapshotSpaceMap.get(snapshot.getName());
             if (spaceUsed == null)
-                spaceUsed =  Pair.create(sizeOnDisk,trueSize);
+                spaceUsed =  new SnapshotDetails(sizeOnDisk, trueSize);
             else
-                spaceUsed = Pair.create(spaceUsed.left + sizeOnDisk, spaceUsed.right + trueSize);
+                spaceUsed = new SnapshotDetails(spaceUsed.sizeOnDisk + sizeOnDisk, spaceUsed.trueSize + trueSize);
             snapshotSpaceMap.put(snapshot.getName(), spaceUsed);
         }
         return snapshotSpaceMap;
@@ -1030,6 +1030,18 @@ public class Directories
                 && desc.ksname.equals(metadata.keyspace)
                 && desc.cfname.equals(metadata.name)
                 && !toSkip.contains(file);
+        }
+    }
+
+    public class SnapshotDetails
+    {
+        final long sizeOnDisk;
+        final long trueSize;
+
+        private SnapshotDetails(long sizeOnDisk, long trueSize)
+        {
+            this.sizeOnDisk = sizeOnDisk;
+            this.trueSize = trueSize;
         }
     }
 }

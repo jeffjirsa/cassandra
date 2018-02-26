@@ -111,6 +111,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.utils.FBUtilities$1",
     "org.apache.cassandra.utils.CloseableIterator",
     "org.apache.cassandra.utils.Pair",
+    "org.apache.cassandra.utils.ObjectIntPair",
     "org.apache.cassandra.OffsetAwareConfigurationLoader",
     "org.apache.cassandra.ConsoleAppender",
     "org.apache.cassandra.ConsoleAppender$1",

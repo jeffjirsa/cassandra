@@ -34,7 +34,6 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
@@ -89,7 +88,7 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
     private void recordSizeEstimates(ColumnFamilyStore table, Collection<Range<Token>> localRanges)
     {
         // for each local primary range, estimate (crudely) mean partition size and partitions count.
-        Map<Range<Token>, Pair<Long, Long>> estimates = new HashMap<>(localRanges.size());
+        Map<Range<Token>, SizeEstimate> estimates = new HashMap<>(localRanges.size());
         for (Range<Token> localRange : localRanges)
         {
             for (Range<Token> unwrappedRange : localRange.unwrap())
@@ -119,7 +118,7 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
                         refs.release();
                 }
 
-                estimates.put(unwrappedRange, Pair.create(partitionsCount, meanPartitionSize));
+                estimates.put(unwrappedRange, new SizeEstimate(partitionsCount, meanPartitionSize));
             }
         }
 
@@ -151,5 +150,17 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
     public void onDropTable(String keyspace, String table)
     {
         SystemKeyspace.clearSizeEstimates(keyspace, table);
+    }
+
+    class SizeEstimate
+    {
+        final long partitionsCount;
+        final long meanPartitionSize;
+
+        private SizeEstimate(long partitionsCount, long meanPartitionSize)
+        {
+            this.partitionsCount = partitionsCount;
+            this.meanPartitionSize = meanPartitionSize;
+        }
     }
 }

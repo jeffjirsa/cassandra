@@ -40,7 +40,6 @@ import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.EstimatedHistogram;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TopKSampler;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -205,7 +204,7 @@ public class TableMetrics
     public final static LatencyMetrics globalWriteLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Write");
     public final static LatencyMetrics globalRangeLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Range");
 
-    private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
+    private static TableSizesPair totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
         long total = 0;
         long filtered = 0;
@@ -233,7 +232,7 @@ public class TableMetrics
                 }
             }
         }
-        return Pair.create(filtered, total);
+        return new TableSizesPair(filtered, total);
     }
 
     public static final Gauge<Double> globalPercentRepaired = Metrics.register(globalFactory.createMetricName("PercentRepaired"),
@@ -241,9 +240,9 @@ public class TableMetrics
     {
         public Double getValue()
         {
-            Pair<Long, Long> result = totalNonSystemTablesSize(SSTableReader::isRepaired);
-            double repaired = result.left;
-            double total = result.right;
+            TableSizesPair result = totalNonSystemTablesSize(SSTableReader::isRepaired);
+            double repaired = result.filtered;
+            double total = result.total;
             return total > 0 ? (repaired / total) * 100 : 100.0;
         }
     });
@@ -253,7 +252,7 @@ public class TableMetrics
     {
         public Long getValue()
         {
-            return totalNonSystemTablesSize(SSTableReader::isRepaired).left;
+            return totalNonSystemTablesSize(SSTableReader::isRepaired).filtered;
         }
     });
 
@@ -262,7 +261,7 @@ public class TableMetrics
     {
         public Long getValue()
         {
-            return totalNonSystemTablesSize(s -> !s.isRepaired() && !s.isPendingRepair()).left;
+            return totalNonSystemTablesSize(s -> !s.isRepaired() && !s.isPendingRepair()).filtered;
         }
     });
 
@@ -271,7 +270,7 @@ public class TableMetrics
     {
         public Long getValue()
         {
-            return totalNonSystemTablesSize(SSTableReader::isPendingRepair).left;
+            return totalNonSystemTablesSize(SSTableReader::isPendingRepair).filtered;
         }
     });
 
@@ -1137,6 +1136,18 @@ public class TableMetrics
             mbeanName.append("type=").append(type);
             mbeanName.append(",name=").append(metricName);
             return new CassandraMetricsRegistry.MetricName(groupName, type, metricName, "all", mbeanName.toString());
+        }
+    }
+
+    static class TableSizesPair
+    {
+        public final long filtered;
+        public final long total;
+
+        TableSizesPair(long filtered, long total)
+        {
+            this.filtered = filtered;
+            this.total = total;
         }
     }
 

@@ -32,7 +32,9 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.streaming.messages.OutgoingFileMessage;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
  * StreamTransferTask sends streams for a given table

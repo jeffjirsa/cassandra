@@ -199,7 +199,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
      * Find the lowest and highest timestamps in a given timestamp/unit pair
      * Returns milliseconds, caller should adjust accordingly
      */
-    public static Pair<Long,Long> getWindowBoundsInMillis(TimeUnit windowTimeUnit, int windowTimeSize, long timestampInMillis)
+    public static TWCSWindowBounds getWindowBoundsInMillis(TimeUnit windowTimeUnit, int windowTimeSize, long timestampInMillis)
     {
         long lowerTimestamp;
         long upperTimestamp;
@@ -222,7 +222,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
                 break;
         }
 
-        return Pair.create(TimeUnit.MILLISECONDS.convert(lowerTimestamp, TimeUnit.SECONDS),
+        return new TWCSWindowBounds(TimeUnit.MILLISECONDS.convert(lowerTimestamp, TimeUnit.SECONDS),
                            TimeUnit.MILLISECONDS.convert(upperTimestamp, TimeUnit.SECONDS));
 
     }
@@ -249,10 +249,10 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         {
             assert TimeWindowCompactionStrategyOptions.validTimestampTimeUnits.contains(timestampResolution);
             long tStamp = TimeUnit.MILLISECONDS.convert(f.getMaxTimestamp(), timestampResolution);
-            Pair<Long,Long> bounds = getWindowBoundsInMillis(sstableWindowUnit, sstableWindowSize, tStamp);
-            buckets.put(bounds.left, f);
-            if (bounds.left > maxTimestamp)
-                maxTimestamp = bounds.left;
+            TWCSWindowBounds bounds = getWindowBoundsInMillis(sstableWindowUnit, sstableWindowSize, tStamp);
+            buckets.put(bounds.lower, f);
+            if (bounds.lower > maxTimestamp)
+                maxTimestamp = bounds.lower;
         }
 
         logger.trace("buckets {}, max timestamp {}", buckets, maxTimestamp);
@@ -394,5 +394,17 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         return String.format("TimeWindowCompactionStrategy[%s/%s]",
                 cfs.getMinimumCompactionThreshold(),
                 cfs.getMaximumCompactionThreshold());
+    }
+
+    protected static class TWCSWindowBounds
+    {
+        public final long lower;
+        public final long upper;
+
+        private TWCSWindowBounds(long lower, long upper)
+        {
+            this.lower = lower;
+            this.upper = upper;
+        }
     }
 }

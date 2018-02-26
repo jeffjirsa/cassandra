@@ -22,7 +22,6 @@ import javax.management.openmbean.*;
 
 import com.google.common.base.Throwables;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.Pair;
 
 
 
@@ -69,12 +68,12 @@ public class SnapshotDetailsTabularData
     }
 
 
-    public static void from(final String snapshot, final String ks, final String cf, Map.Entry<String, Pair<Long,Long>> snapshotDetail, TabularDataSupport result)
+    public static void from(final String snapshot, final String ks, final String cf, Map.Entry<String, Directories.SnapshotDetails> snapshotDetail, TabularDataSupport result)
     {
         try
         {
-            final String totalSize = FileUtils.stringifyFileSize(snapshotDetail.getValue().left);
-            final String liveSize =  FileUtils.stringifyFileSize(snapshotDetail.getValue().right);
+            final String totalSize = FileUtils.stringifyFileSize(snapshotDetail.getValue().sizeOnDisk);
+            final String liveSize =  FileUtils.stringifyFileSize(snapshotDetail.getValue().trueSize);
             result.put(new CompositeDataSupport(COMPOSITE_TYPE, ITEM_NAMES,
                     new Object[]{ snapshot, ks, cf, liveSize, totalSize }));
         }

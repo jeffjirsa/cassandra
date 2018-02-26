@@ -1359,9 +1359,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public long estimatedKeysForRanges(Collection<Range<Token>> ranges)
     {
         long sampleKeyCount = 0;
-        List<Pair<Integer, Integer>> sampleIndexes = getSampleIndexesForRanges(indexSummary, ranges);
-        for (Pair<Integer, Integer> sampleIndexRange : sampleIndexes)
-            sampleKeyCount += (sampleIndexRange.right - sampleIndexRange.left + 1);
+        List<IndexesBounds> sampleIndexes = getSampleIndexesForRanges(indexSummary, ranges);
+        for (IndexesBounds sampleIndexRange : sampleIndexes)
+            sampleKeyCount += (sampleIndexRange.upperPosistion - sampleIndexRange.lowerPosition + 1);
 
         // adjust for the current sampling level: (BSL / SL) * index_interval_at_full_sampling
         long estimatedKeys = sampleKeyCount * ((long) Downsampling.BASE_SAMPLING_LEVEL * indexSummary.getMinIndexInterval()) / indexSummary.getSamplingLevel();
@@ -1393,10 +1393,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return indexSummary.getKey(index);
     }
 
-    private static List<Pair<Integer,Integer>> getSampleIndexesForRanges(IndexSummary summary, Collection<Range<Token>> ranges)
+    private static List<IndexesBounds> getSampleIndexesForRanges(IndexSummary summary, Collection<Range<Token>> ranges)
     {
         // use the index to determine a minimal section for each range
-        List<Pair<Integer,Integer>> positions = new ArrayList<>();
+        List<IndexesBounds> positions = new ArrayList<>();
 
         for (Range<Token> range : Range.normalize(ranges))
         {
@@ -1430,14 +1430,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             if (left > right)
                 // empty range
                 continue;
-            positions.add(Pair.create(left, right));
+            positions.add(new IndexesBounds(left, right));
         }
         return positions;
     }
 
     public Iterable<DecoratedKey> getKeySamples(final Range<Token> range)
     {
-        final List<Pair<Integer, Integer>> indexRanges = getSampleIndexesForRanges(indexSummary, Collections.singletonList(range));
+        final List<IndexesBounds> indexRanges = getSampleIndexesForRanges(indexSummary, Collections.singletonList(range));
 
         if (indexRanges.isEmpty())
             return Collections.emptyList();
@@ -1448,18 +1448,18 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             {
                 return new Iterator<DecoratedKey>()
                 {
-                    private Iterator<Pair<Integer, Integer>> rangeIter = indexRanges.iterator();
-                    private Pair<Integer, Integer> current;
+                    private Iterator<IndexesBounds> rangeIter = indexRanges.iterator();
+                    private IndexesBounds current;
                     private int idx;
 
                     public boolean hasNext()
                     {
-                        if (current == null || idx > current.right)
+                        if (current == null || idx > current.upperPosistion)
                         {
                             if (rangeIter.hasNext())
                             {
                                 current = rangeIter.next();
-                                idx = current.left;
+                                idx = current.lowerPosition;
                                 return true;
                             }
                             return false;
@@ -1487,10 +1487,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * Determine the minimal set of sections that can be extracted from this SSTable to cover the given ranges.
      * @return A sorted list of (offset,end) pairs that cover the given ranges in the datafile for this SSTable.
      */
-    public List<Pair<Long,Long>> getPositionsForRanges(Collection<Range<Token>> ranges)
+    public List<PartitionPositionBounds> getPositionsForRanges(Collection<Range<Token>> ranges)
     {
         // use the index to determine a minimal section for each range
-        List<Pair<Long,Long>> positions = new ArrayList<>();
+        List<PartitionPositionBounds> positions = new ArrayList<>();
         for (Range<Token> range : Range.normalize(ranges))
         {
             assert !range.isWrapAround() || range.right.isMinimum();
@@ -1512,7 +1512,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 continue;
 
             assert left < right : String.format("Range=%s openReason=%s first=%s last=%s left=%d right=%d", range, openReason, first, last, left, right);
-            positions.add(Pair.create(left, right));
+            positions.add(new PartitionPositionBounds(left, right));
         }
         return positions;
     }
@@ -2366,5 +2366,29 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                                            OpenReason openReason,
                                            SerializationHeader header);
 
+    }
+
+    public static class PartitionPositionBounds
+    {
+        public final long lowerPosition;
+        public final long upperPosition;
+
+        public PartitionPositionBounds(long lower, long upper)
+        {
+            this.lowerPosition = lower;
+            this.upperPosition = upper;
+        }
+    }
+
+    public static class IndexesBounds
+    {
+        public final int lowerPosition;
+        public final int upperPosistion;
+
+        public IndexesBounds(int lower, int upper)
+        {
+            this.lowerPosition = lower;
+            this.upperPosistion = upper;
+        }
     }
 }

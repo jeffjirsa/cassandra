@@ -34,7 +34,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.async.OutboundConnectionIdentifier.ConnectionType;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.tracing.Tracing.isTracing;
 
@@ -215,7 +214,7 @@ public class MessageOut<T>
         }
     }
 
-    private Pair<Long, Long> calculateSerializedSize(int version)
+    private MessageOutSizes calculateSerializedSize(int version)
     {
         long size = 0;
         size += CompactEndpointSerializationHelper.instance.serializedSize(from, version);
@@ -236,7 +235,7 @@ public class MessageOut<T>
         assert payloadSize <= Integer.MAX_VALUE; // larger values are supported in sstables but not messages
         size += TypeSizes.sizeof((int) payloadSize);
         size += payloadSize;
-        return Pair.create(size, payloadSize);
+        return new MessageOutSizes(size, payloadSize);
     }
 
     /**
@@ -258,18 +257,18 @@ public class MessageOut<T>
         if (serializedSize > 0 && serializedSizeVersion == version)
             return serializedSize;
 
-        Pair<Long, Long> sizes = calculateSerializedSize(version);
-        if (sizes.left > Integer.MAX_VALUE)
-            throw new IllegalStateException("message size exceeds maximum allowed size: size = " + sizes.left);
+        MessageOutSizes sizes = calculateSerializedSize(version);
+        if (sizes.messageSize > Integer.MAX_VALUE)
+            throw new IllegalStateException("message size exceeds maximum allowed size: size = " + sizes.messageSize);
 
         if (serializedSizeVersion == SERIALIZED_SIZE_VERSION_UNDEFINED)
         {
-            serializedSize = sizes.left.intValue();
-            payloadSerializedSize = sizes.right.intValue();
+            serializedSize = Ints.checkedCast(sizes.messageSize);
+            payloadSerializedSize = Ints.checkedCast(sizes.payloadSize);
             serializedSizeVersion = version;
         }
 
-        return sizes.left.intValue();
+        return Ints.checkedCast(sizes.messageSize);
     }
 
     public Object getParameter(ParameterType type)
@@ -282,5 +281,17 @@ public class MessageOut<T>
             }
         }
         return null;
+    }
+
+    private class MessageOutSizes
+    {
+        public final long messageSize;
+        public final long payloadSize;
+
+        private MessageOutSizes(long messageSize, long payloadSize)
+        {
+            this.messageSize = messageSize;
+            this.payloadSize = payloadSize;
+        }
     }
 }
