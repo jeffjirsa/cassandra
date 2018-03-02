@@ -162,5 +162,21 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
             this.partitionsCount = partitionsCount;
             this.meanPartitionSize = meanPartitionSize;
         }
+
+        @Override
+        public final int hashCode()
+        {
+            int hashCode = (int) partitionsCount ^ (int) (partitionsCount >>> 32);
+            return 31 * (hashCode ^ (int) ((int) meanPartitionSize ^  (meanPartitionSize >>> 32)));
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof SizeEstimate))
+                return false;
+            SizeEstimate that = (SizeEstimate)o;
+            return partitionsCount == that.partitionsCount && meanPartitionSize == that.meanPartitionSize;
+        }
     }
 }

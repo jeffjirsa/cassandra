@@ -406,5 +406,21 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
             this.lower = lower;
             this.upper = upper;
         }
+
+        @Override
+        public final int hashCode()
+        {
+            int hashCode = (int) lower ^ (int) (lower >>> 32);
+            return 31 * (hashCode ^ (int) ((int) upper ^  (upper >>> 32)));
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof TWCSWindowBounds))
+                return false;
+            TWCSWindowBounds that = (TWCSWindowBounds)o;
+            return lower == that.lower && upper == that.upper;
+        }
     }
 }

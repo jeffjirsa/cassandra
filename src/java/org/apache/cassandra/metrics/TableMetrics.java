@@ -1149,6 +1149,22 @@ public class TableMetrics
             this.filtered = filtered;
             this.total = total;
         }
+
+        @Override
+        public final int hashCode()
+        {
+            int hashCode = (int) filtered ^ (int) (filtered >>> 32);
+            return 31 * (hashCode ^ (int) ((int) total ^  (total >>> 32)));
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof TableSizesPair))
+                return false;
+            TableSizesPair that = (TableSizesPair)o;
+            return filtered == that.filtered && total == that.total;
+        }
     }
 
     public enum Sampler

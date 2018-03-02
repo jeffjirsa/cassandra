@@ -2815,6 +2815,23 @@ public class StorageProxy implements StorageProxyMBean
             this.liveEndpoints = liveEndpoints;
             this.participants = participants;
         }
+
+        @Override
+        public final int hashCode()
+        {
+            int hashCode = 31 + (liveEndpoints == null ? 0 : liveEndpoints.hashCode());
+            return 31 * hashCode * this.participants;
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof PaxosParticipants))
+                return false;
+            PaxosParticipants that = (PaxosParticipants)o;
+            // handles nulls properly
+            return Objects.equals(liveEndpoints, that.liveEndpoints) && participants == that.participants;
+        }
     }
 
     static class PaxosBallotAndContention
@@ -2826,6 +2843,23 @@ public class StorageProxy implements StorageProxyMBean
         {
             this.ballot = ballot;
             this.contentions = contentions;
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            int hashCode = 31 + (ballot == null ? 0 : ballot.hashCode());
+            return 31 * hashCode * this.contentions;
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof PaxosBallotAndContention))
+                return false;
+            PaxosBallotAndContention that = (PaxosBallotAndContention)o;
+            // handles nulls properly
+            return Objects.equals(ballot, that.ballot) && contentions == that.contentions;
         }
     }
 }

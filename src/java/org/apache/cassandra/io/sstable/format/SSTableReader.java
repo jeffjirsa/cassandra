@@ -1361,7 +1361,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         long sampleKeyCount = 0;
         List<IndexesBounds> sampleIndexes = getSampleIndexesForRanges(indexSummary, ranges);
         for (IndexesBounds sampleIndexRange : sampleIndexes)
-            sampleKeyCount += (sampleIndexRange.upperPosistion - sampleIndexRange.lowerPosition + 1);
+            sampleKeyCount += (sampleIndexRange.upperPosition - sampleIndexRange.lowerPosition + 1);
 
         // adjust for the current sampling level: (BSL / SL) * index_interval_at_full_sampling
         long estimatedKeys = sampleKeyCount * ((long) Downsampling.BASE_SAMPLING_LEVEL * indexSummary.getMinIndexInterval()) / indexSummary.getSamplingLevel();
@@ -1454,7 +1454,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
                     public boolean hasNext()
                     {
-                        if (current == null || idx > current.upperPosistion)
+                        if (current == null || idx > current.upperPosition)
                         {
                             if (rangeIter.hasNext())
                             {
@@ -2378,17 +2378,48 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             this.lowerPosition = lower;
             this.upperPosition = upper;
         }
+
+        @Override
+        public final int hashCode()
+        {
+            int hashCode = (int) lowerPosition ^ (int) (lowerPosition >>> 32);
+            return 31 * (hashCode ^ (int) ((int) upperPosition ^  (upperPosition >>> 32)));
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof PartitionPositionBounds))
+                return false;
+            PartitionPositionBounds that = (PartitionPositionBounds)o;
+            return lowerPosition == that.lowerPosition && upperPosition == that.upperPosition;
+        }
     }
 
     public static class IndexesBounds
     {
         public final int lowerPosition;
-        public final int upperPosistion;
+        public final int upperPosition;
 
         public IndexesBounds(int lower, int upper)
         {
             this.lowerPosition = lower;
-            this.upperPosistion = upper;
+            this.upperPosition = upper;
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            return 31 * lowerPosition * upperPosition;
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof IndexesBounds))
+                return false;
+            IndexesBounds that = (IndexesBounds)o;
+            return lowerPosition == that.lowerPosition && upperPosition == that.upperPosition;
         }
     }
 }

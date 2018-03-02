@@ -1043,5 +1043,21 @@ public class Directories
             this.sizeOnDisk = sizeOnDisk;
             this.trueSize = trueSize;
         }
+
+        @Override
+        public final int hashCode()
+        {
+            int hashCode = (int) sizeOnDisk ^ (int) (sizeOnDisk >>> 32);
+            return 31 * (hashCode ^ (int) ((int) trueSize ^  (trueSize >>> 32)));
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof SnapshotDetails))
+                return false;
+            SnapshotDetails that = (SnapshotDetails)o;
+            return sizeOnDisk == that.sizeOnDisk && trueSize == that.trueSize;
+        }
     }
 }

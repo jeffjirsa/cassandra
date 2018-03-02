@@ -242,11 +242,12 @@ public class LZ4Compressor implements ICompressor
             this.compressorType = compressorType;
             this.compresssionLevel = level;
         }
+
         @Override
         public final int hashCode()
         {
             int hashCode = 31 + (compressorType == null ? 0 : compressorType.hashCode());
-            return 31*hashCode * this.compresssionLevel;
+            return 31 * hashCode * this.compresssionLevel;
         }
 
         @Override

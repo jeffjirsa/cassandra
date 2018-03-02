@@ -283,7 +283,7 @@ public class MessageOut<T>
         return null;
     }
 
-    private class MessageOutSizes
+    private static class MessageOutSizes
     {
         public final long messageSize;
         public final long payloadSize;
@@ -292,6 +292,22 @@ public class MessageOut<T>
         {
             this.messageSize = messageSize;
             this.payloadSize = payloadSize;
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            int hashCode = (int) messageSize ^ (int) (messageSize >>> 32);
+            return 31 * (hashCode ^ (int) ((int) payloadSize ^  (payloadSize >>> 32)));
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof MessageOutSizes))
+                return false;
+            MessageOutSizes that = (MessageOutSizes)o;
+            return messageSize == that.messageSize && payloadSize == that.payloadSize;
         }
     }
 }
