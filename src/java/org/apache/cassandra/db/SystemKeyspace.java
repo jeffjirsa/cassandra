@@ -1256,7 +1256,7 @@ public final class SystemKeyspace
             update.add(Rows.simpleBuilder(SizeEstimates, table, range.left.toString(), range.right.toString())
                            .timestamp(timestamp)
                            .add("partitions_count", values.partitionsCount)
-                           .add("mean_partition_size", values.meanPartitionSize)
+                           .add("mean_partition_size", values.meanPartitionSizeBytes)
                            .build());
         }
         new Mutation(update.build()).apply();

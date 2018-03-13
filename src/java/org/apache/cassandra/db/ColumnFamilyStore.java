@@ -1955,7 +1955,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return  Return a map of all snapshots to space being used
      * The pair for a snapshot has true size and size on disk.
      */
-    public Map<String, Directories.SnapshotDetails> getSnapshotDetails()
+    public Map<String, Directories.SnapshotSizeDetails> getSnapshotDetails()
     {
         return getDirectories().getSnapshotDetails();
     }

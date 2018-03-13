@@ -68,12 +68,12 @@ public class SnapshotDetailsTabularData
     }
 
 
-    public static void from(final String snapshot, final String ks, final String cf, Map.Entry<String, Directories.SnapshotDetails> snapshotDetail, TabularDataSupport result)
+    public static void from(final String snapshot, final String ks, final String cf, Map.Entry<String, Directories.SnapshotSizeDetails> snapshotDetail, TabularDataSupport result)
     {
         try
         {
-            final String totalSize = FileUtils.stringifyFileSize(snapshotDetail.getValue().sizeOnDisk);
-            final String liveSize =  FileUtils.stringifyFileSize(snapshotDetail.getValue().trueSize);
+            final String totalSize = FileUtils.stringifyFileSize(snapshotDetail.getValue().sizeOnDiskBytes);
+            final String liveSize =  FileUtils.stringifyFileSize(snapshotDetail.getValue().dataSizeBytes);
             result.put(new CompositeDataSupport(COMPOSITE_TYPE, ITEM_NAMES,
                     new Object[]{ snapshot, ks, cf, liveSize, totalSize }));
         }

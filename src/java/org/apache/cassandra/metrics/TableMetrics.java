@@ -204,7 +204,7 @@ public class TableMetrics
     public final static LatencyMetrics globalWriteLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Write");
     public final static LatencyMetrics globalRangeLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Range");
 
-    private static TableSizesPair totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
+    private static TableSizesResult totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
         long total = 0;
         long filtered = 0;
@@ -232,7 +232,7 @@ public class TableMetrics
                 }
             }
         }
-        return new TableSizesPair(filtered, total);
+        return new TableSizesResult(filtered, total);
     }
 
     public static final Gauge<Double> globalPercentRepaired = Metrics.register(globalFactory.createMetricName("PercentRepaired"),
@@ -240,9 +240,9 @@ public class TableMetrics
     {
         public Double getValue()
         {
-            TableSizesPair result = totalNonSystemTablesSize(SSTableReader::isRepaired);
-            double repaired = result.filtered;
-            double total = result.total;
+            TableSizesResult result = totalNonSystemTablesSize(SSTableReader::isRepaired);
+            double repaired = result.filteredSize;
+            double total = result.totalSize;
             return total > 0 ? (repaired / total) * 100 : 100.0;
         }
     });
@@ -252,7 +252,7 @@ public class TableMetrics
     {
         public Long getValue()
         {
-            return totalNonSystemTablesSize(SSTableReader::isRepaired).filtered;
+            return totalNonSystemTablesSize(SSTableReader::isRepaired).filteredSize;
         }
     });
 
@@ -261,7 +261,7 @@ public class TableMetrics
     {
         public Long getValue()
         {
-            return totalNonSystemTablesSize(s -> !s.isRepaired() && !s.isPendingRepair()).filtered;
+            return totalNonSystemTablesSize(s -> !s.isRepaired() && !s.isPendingRepair()).filteredSize;
         }
     });
 
@@ -270,7 +270,7 @@ public class TableMetrics
     {
         public Long getValue()
         {
-            return totalNonSystemTablesSize(SSTableReader::isPendingRepair).filtered;
+            return totalNonSystemTablesSize(SSTableReader::isPendingRepair).filteredSize;
         }
     });
 
@@ -1139,31 +1139,31 @@ public class TableMetrics
         }
     }
 
-    static class TableSizesPair
+    static class TableSizesResult
     {
-        public final long filtered;
-        public final long total;
+        public final long filteredSize;
+        public final long totalSize;
 
-        TableSizesPair(long filtered, long total)
+        TableSizesResult(long filteredSize, long totalSize)
         {
-            this.filtered = filtered;
-            this.total = total;
+            this.filteredSize = filteredSize;
+            this.totalSize = totalSize;
         }
 
         @Override
         public final int hashCode()
         {
-            int hashCode = (int) filtered ^ (int) (filtered >>> 32);
-            return 31 * (hashCode ^ (int) ((int) total ^  (total >>> 32)));
+            int hashCode = (int) filteredSize ^ (int) (filteredSize >>> 32);
+            return 31 * (hashCode ^ (int) ((int) totalSize ^  (totalSize >>> 32)));
         }
 
         @Override
         public final boolean equals(Object o)
         {
-            if(!(o instanceof TableSizesPair))
+            if(!(o instanceof TableSizesResult))
                 return false;
-            TableSizesPair that = (TableSizesPair)o;
-            return filtered == that.filtered && total == that.total;
+            TableSizesResult that = (TableSizesResult)o;
+            return filteredSize == that.filteredSize && totalSize == that.totalSize;
         }
     }
 

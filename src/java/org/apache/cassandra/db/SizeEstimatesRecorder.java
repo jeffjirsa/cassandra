@@ -155,19 +155,19 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
     class SizeEstimate
     {
         final long partitionsCount;
-        final long meanPartitionSize;
+        final long meanPartitionSizeBytes;
 
-        private SizeEstimate(long partitionsCount, long meanPartitionSize)
+        private SizeEstimate(long partitionsCount, long meanPartitionSizeBytes)
         {
             this.partitionsCount = partitionsCount;
-            this.meanPartitionSize = meanPartitionSize;
+            this.meanPartitionSizeBytes = meanPartitionSizeBytes;
         }
 
         @Override
         public final int hashCode()
         {
             int hashCode = (int) partitionsCount ^ (int) (partitionsCount >>> 32);
-            return 31 * (hashCode ^ (int) ((int) meanPartitionSize ^  (meanPartitionSize >>> 32)));
+            return 31 * (hashCode ^ (int) ((int) meanPartitionSizeBytes ^  (meanPartitionSizeBytes >>> 32)));
         }
 
         @Override
@@ -176,7 +176,7 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
             if(!(o instanceof SizeEstimate))
                 return false;
             SizeEstimate that = (SizeEstimate)o;
-            return partitionsCount == that.partitionsCount && meanPartitionSize == that.meanPartitionSize;
+            return partitionsCount == that.partitionsCount && meanPartitionSizeBytes == that.meanPartitionSizeBytes;
         }
     }
 }
