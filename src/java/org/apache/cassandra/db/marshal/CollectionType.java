@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Lists;
 import org.apache.cassandra.cql3.Maps;
+import org.apache.cassandra.cql3.Queues;
 import org.apache.cassandra.cql3.Sets;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
@@ -68,7 +69,15 @@ public abstract class CollectionType<T> extends AbstractType<T>
             {
                 return Lists.valueSpecOf(collection);
             }
+        },
+        QUEUE
+        {
+            public ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey)
+            {
+                return isKey ? Queues.keySpecOf(collection) : Queues.valueSpecOf(collection);
+            }
         };
+
 
         public abstract ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey);
     }
@@ -140,7 +149,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return true;
     }
 
-    // Overrided by maps
+    // Overrided by maps, queues
     protected int collectionSize(List<ByteBuffer> values)
     {
         return values.size();

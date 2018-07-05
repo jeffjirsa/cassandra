@@ -1768,6 +1768,13 @@ collection_type returns [CQL3Type.Raw pt]
             if (t1 != null && t2 != null)
                 $pt = CQL3Type.Raw.map(t1, t2);
         }
+    | K_QUEUE  '<' t1=comparatorType ',' t2=comparatorType '>' K_WITH K_LIMIT t3=intValue
+        {
+            // Queues are implemented as a map with an intended size
+            // if we can't parse either t1 or t2, antlr will "recover" and we may have t1 or t2 null.
+            if (t1 != null && t2 != null && t3 != null)
+                $pt = CQL3Type.Raw.queue(t1, t2, t3);
+         }
     | K_LIST '<' t=comparatorType '>'
         { if (t != null) $pt = CQL3Type.Raw.list(t); }
     | K_SET  '<' t=comparatorType '>'

@@ -178,6 +178,7 @@ K_EXISTS:      E X I S T S;
 
 K_MAP:         M A P;
 K_LIST:        L I S T;
+K_QUEUE:       Q U E U E;
 K_POSITIVE_NAN: N A N;
 K_NEGATIVE_NAN: '-' N A N;
 K_POSITIVE_INFINITY:    I N F I N I T Y;

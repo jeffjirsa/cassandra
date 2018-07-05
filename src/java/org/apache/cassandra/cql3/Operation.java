@@ -178,6 +178,8 @@ public abstract class Operation
                         return new Sets.Setter(receiver, v);
                     case MAP:
                         return new Maps.Setter(receiver, v);
+                    case QUEUE:
+                        return new Queues.Setter(receiver, v);
                     default:
                         throw new AssertionError();
                 }
@@ -232,6 +234,11 @@ public abstract class Operation
                     Term key = selector.prepare(metadata.keyspace, Maps.keySpecOf(receiver));
                     Term mval = value.prepare(metadata.keyspace, Maps.valueSpecOf(receiver));
                     return new Maps.SetterByKey(receiver, key, mval);
+                case QUEUE:
+                    Term qkey = selector.prepare(metadata.keyspace, Queues.keySpecOf(receiver));
+                    Term qval = value.prepare(metadata.keyspace, Queues.valueSpecOf(receiver));
+                    return new Queues.SetterByKey(receiver, qkey, qval);
+
             }
             throw new AssertionError();
         }
@@ -330,6 +337,19 @@ public abstract class Operation
                     }
 
                     return new Maps.Putter(receiver, term);
+                case QUEUE:
+                    Term qterm;
+                    try
+                    {
+                        qterm = value.prepare(metadata.keyspace, receiver);
+                    }
+                    catch (InvalidRequestException e)
+                    {
+                        throw new InvalidRequestException(String.format("Value for a map addition has to be a map, but was: '%s'", value));
+                    }
+
+                    return new Queues.Putter(receiver, qterm);
+
             }
             throw new AssertionError();
         }
@@ -489,6 +509,9 @@ public abstract class Operation
                 case MAP:
                     Term key = element.prepare(keyspace, Maps.keySpecOf(receiver));
                     return new Maps.DiscarderByKey(receiver, key);
+                case QUEUE:
+                    Term qkey = element.prepare(keyspace, Queues.keySpecOf(receiver));
+                    return new Maps.DiscarderByKey(receiver, qkey);
             }
             throw new AssertionError();
         }

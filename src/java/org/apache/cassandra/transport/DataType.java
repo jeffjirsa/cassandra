@@ -61,7 +61,8 @@ public enum DataType
     MAP      (33, null, ProtocolVersion.V1),
     SET      (34, null, ProtocolVersion.V1),
     UDT      (48, null, ProtocolVersion.V3),
-    TUPLE    (49, null, ProtocolVersion.V3);
+    TUPLE    (49, null, ProtocolVersion.V3),
+    QUEUE    (50, null, ProtocolVersion.V3);
 
     public static final Codec codec = new Codec();
 
@@ -105,6 +106,7 @@ public enum DataType
             case SET:
                 return DataType.toType(codec.decodeOne(cb, version));
             case MAP:
+            case QUEUE:
                 List<AbstractType> l = new ArrayList<AbstractType>(2);
                 l.add(DataType.toType(codec.decodeOne(cb, version)));
                 l.add(DataType.toType(codec.decodeOne(cb, version)));
@@ -154,6 +156,7 @@ public enum DataType
                 codec.writeOne(DataType.fromType((AbstractType)value, version), cb, version);
                 break;
             case MAP:
+            case QUEUE:
                 List<AbstractType> l = (List<AbstractType>)value;
                 codec.writeOne(DataType.fromType(l.get(0), version), cb, version);
                 codec.writeOne(DataType.fromType(l.get(1), version), cb, version);
@@ -192,6 +195,7 @@ public enum DataType
             case SET:
                 return codec.oneSerializedSize(DataType.fromType((AbstractType)value, version), version);
             case MAP:
+            case QUEUE:
                 List<AbstractType> l = (List<AbstractType>)value;
                 int s = 0;
                 s += codec.oneSerializedSize(DataType.fromType(l.get(0), version), version);
@@ -245,6 +249,11 @@ public enum DataType
                     MapType mt = (MapType)type;
                     return Pair.<DataType, Object>create(MAP, Arrays.asList(mt.getKeysType(), mt.getValuesType()));
                 }
+                else if (type instanceof QueueType)
+                {
+                    QueueType qt = (QueueType)type;
+                    return Pair.create(QUEUE, Arrays.asList(qt.getKeysType(), qt.getValuesType()));
+                }
                 else if (type instanceof SetType)
                 {
                     return Pair.<DataType, Object>create(SET, ((SetType)type).getElementsType());
@@ -284,6 +293,9 @@ public enum DataType
                 case MAP:
                     List<AbstractType> l = (List<AbstractType>)entry.right;
                     return MapType.getInstance(l.get(0), l.get(1), true);
+                case QUEUE:
+                    List<AbstractType> lq = (List<AbstractType>)entry.right;
+                    return QueueType.getInstance(lq.get(0), lq.get(1), true);
                 case UDT:
                     return (AbstractType)entry.right;
                 case TUPLE:

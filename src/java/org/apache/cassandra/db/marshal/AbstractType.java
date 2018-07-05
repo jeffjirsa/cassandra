@@ -343,6 +343,18 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return false;
     }
 
+    public boolean hasLimit()
+    {
+        return false;
+    }
+
+    public int getLimit()
+    {
+        assert false : "Type has no limit";
+        return -1;
+    }
+
+
     public AbstractType<?> freeze()
     {
         return this;

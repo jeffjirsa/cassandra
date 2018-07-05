@@ -265,6 +265,7 @@ public interface CQL3Type
         public String toString()
         {
             boolean isFrozen = !this.type.isMultiCell();
+            boolean hasLimit = this.type.hasLimit();
             StringBuilder sb = new StringBuilder(isFrozen ? "frozen<" : "");
             switch (type.kind)
             {
@@ -275,6 +276,11 @@ public interface CQL3Type
                 case SET:
                     AbstractType<?> setType = ((SetType)type).getElementsType();
                     sb.append("set<").append(setType.asCQL3Type());
+                    break;
+                case QUEUE:
+                    AbstractType<?> queueKeysType = ((QueueType)type).getKeysType();
+                    AbstractType<?> queueValuesType = ((QueueType)type).getValuesType();
+                    sb.append("queue<").append(queueKeysType.asCQL3Type()).append(", ").append(queueValuesType.asCQL3Type());
                     break;
                 case MAP:
                     AbstractType<?> keysType = ((MapType)type).getKeysType();
@@ -287,6 +293,9 @@ public interface CQL3Type
             sb.append('>');
             if (isFrozen)
                 sb.append('>');
+            if (hasLimit)
+                sb.append(" WITH LIMIT ").append(this.type.getLimit());
+
             return sb.toString();
         }
     }
@@ -569,6 +578,11 @@ public interface CQL3Type
             return new RawCollection(CollectionType.Kind.SET, null, t, false);
         }
 
+        public static Raw queue(CQL3Type.Raw t1, CQL3Type.Raw t2, Term.Raw size)
+        {
+            return new RawCollection(CollectionType.Kind.QUEUE, t1, t2, size, false);
+        }
+
         public static Raw tuple(List<CQL3Type.Raw> ts)
         {
             return new RawTuple(ts, false);
@@ -616,6 +630,7 @@ public interface CQL3Type
             private final CollectionType.Kind kind;
             private final CQL3Type.Raw keys;
             private final CQL3Type.Raw values;
+            private final Term.Raw collectionSize;
 
             private RawCollection(CollectionType.Kind kind, CQL3Type.Raw keys, CQL3Type.Raw values, boolean frozen)
             {
@@ -623,6 +638,16 @@ public interface CQL3Type
                 this.kind = kind;
                 this.keys = keys;
                 this.values = values;
+                this.collectionSize = null;
+            }
+
+            private RawCollection(CollectionType.Kind kind, CQL3Type.Raw keys, CQL3Type.Raw values, Term.Raw collectionSize, boolean frozen)
+            {
+                super(frozen);
+                this.kind = kind;
+                this.keys = keys;
+                this.values = values;
+                this.collectionSize = collectionSize;
             }
 
             @Override
@@ -696,6 +721,9 @@ public interface CQL3Type
                     case MAP:
                         assert keys != null : "Got null keys type for a collection";
                         return new Collection(MapType.getInstance(keys.prepare(keyspace, udts).getType(), valueType, !frozen));
+                    case QUEUE:
+                        assert keys != null : "Got null keys type for a collection";
+                        return new Collection(QueueType.getInstance(keys.prepare(keyspace, udts).getType(), valueType, !frozen));
                 }
                 throw new AssertionError();
             }

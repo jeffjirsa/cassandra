@@ -690,6 +690,8 @@ public final class SchemaKeyspace
         if (type instanceof ReversedType)
             type = ((ReversedType) type).baseType;
 
+        logger.info("Adding column to schema mutation: {}, {}, {}, {}",
+                    column.name.bytes, column.kind.toString().toLowerCase(), column.position(), type.asCQL3Type());
         builder.update(Columns)
                .row(table.name, column.name.toString())
                .add("column_name_bytes", column.name.bytes)
