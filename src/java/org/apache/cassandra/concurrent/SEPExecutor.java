@@ -18,10 +18,15 @@
 package org.apache.cassandra.concurrent;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Stack;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+
+import com.google.common.collect.AbstractIterator;
+
 
 import org.apache.cassandra.metrics.SEPMetrics;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
@@ -33,7 +38,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
 {
     private final SharedExecutorPool pool;
 
-    public final int maxWorkers;
+    public int maxWorkers;
     public final String name;
     private final int maxTasksQueued;
     private final SEPMetrics metrics;
@@ -180,6 +185,35 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
         }
     }
 
+    public synchronized void setMax(int newMax)
+    {
+        // take all work permits
+        int taken = 0;
+        while (taken < this.maxWorkers)
+        {
+            int workPermits;
+            while (true)
+            {
+                long current = permits.get();
+                workPermits = workPermits(current);
+                if (workPermits == 0) {
+                    Thread.yield();
+                    continue;
+                }
+                if (permits.compareAndSet(current, updateWorkPermits(current, 0)))
+                    break;
+            }
+            taken += workPermits;
+        }
+
+        while(true) {
+            long current = permits.get();
+            if (permits.compareAndSet(current, updateWorkPermits(current, newMax)))
+                break;
+        }
+        this.maxWorkers = newMax;
+    }
+
     public void maybeExecuteImmediately(Runnable command)
     {
         FutureTask<?> ft = newTaskFor(command, null);
@@ -250,7 +284,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
         return completedTasks.get();
     }
 
-    public int getActiveCount()
+    public synchronized int getActiveCount()
     {
         return maxWorkers - workPermits(permits.get());
     }

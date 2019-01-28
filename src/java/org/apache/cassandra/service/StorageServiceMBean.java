@@ -677,4 +677,13 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return true if the node successfully starts resuming. (this does not mean bootstrap streaming was success.)
      */
     public boolean resumeBootstrap();
+
+    /**
+     * XXX: This isn't meant for production, just for testing. If this ever makes it to prod, someone messed up
+     * - Jeff
+     */
+    public int getConcurrentReaders();
+    public int getConcurrentWriters();
+    public void setConcurrentReaders(int reads);
+    public void setConcurrentWriters(int writes);
 }

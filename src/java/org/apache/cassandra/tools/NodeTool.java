@@ -107,6 +107,8 @@ public class NodeTool
                 SetCompactionThroughput.class,
                 GetConcurrentCompactors.class,
                 SetConcurrentCompactors.class,
+                GetConcurrency.class,
+                SetConcurrency.class,
                 SetTimeout.class,
                 SetStreamThroughput.class,
                 SetInterDCStreamThroughput.class,

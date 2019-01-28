@@ -101,6 +101,9 @@ import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
+import org.apache.cassandra.concurrent.LocalAwareExecutorService;
+import org.apache.cassandra.concurrent.SEPExecutor;
+
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -5193,5 +5196,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         DatabaseDescriptor.setHintedHandoffThrottleInKB(throttleInKB);
         logger.info("Updated hinted_handoff_throttle_in_kb to {}", throttleInKB);
+    }
+
+    public int getConcurrentReaders()
+    {
+        return DatabaseDescriptor.getConcurrentReaders();
+    }
+
+    public int getConcurrentWriters()
+    {
+        return DatabaseDescriptor.getConcurrentWriters();
+    }
+
+    public void setConcurrentReaders(int reads)
+    {
+        int currentReaders = DatabaseDescriptor.getConcurrentReaders();
+        LocalAwareExecutorService excutorService = StageManager.getStage(Stage.READ);
+        assert excutorService instanceof SEPExecutor;
+        ((SEPExecutor) excutorService).setMax(reads);
+        DatabaseDescriptor.setConcurrentReaders(reads);
+        logger.info("Changed concurrent readers from {} to {}", currentReaders, reads);
+    }
+
+    public void setConcurrentWriters(int writes)
+    {
+        int currentWriters = DatabaseDescriptor.getConcurrentWriters();
+        LocalAwareExecutorService excutorService = StageManager.getStage(Stage.MUTATION);
+        assert excutorService instanceof SEPExecutor;
+        ((SEPExecutor) excutorService).setMax(writes);
+        DatabaseDescriptor.setConcurrentWriters(writes);
+        logger.info("Changed concurrent writers from {} to {}", currentWriters, writes);
     }
 }

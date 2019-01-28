@@ -1511,6 +1511,16 @@ public class DatabaseDescriptor
         return conf.concurrent_writes;
     }
 
+    public static void setConcurrentReaders(int reads)
+    {
+        conf.concurrent_reads = reads;
+    }
+
+    public static void setConcurrentWriters(int writes)
+    {
+        conf.concurrent_writes = writes;
+    }
+
     public static int getConcurrentCounterWriters()
     {
         return conf.concurrent_counter_writes;
